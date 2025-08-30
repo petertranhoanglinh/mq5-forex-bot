@@ -9,7 +9,7 @@ struct PriceInfoDca
     double priceInSignal;
     double volumn;
     double priceDca;
-    int kind;
+    int kind; //1:BUY 2:SELL
     string comment;
     datetime time;
 };
