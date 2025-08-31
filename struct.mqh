@@ -4,7 +4,7 @@
 #ifndef STRUCT_MQH
 #define STRUCT_MQH
 
-struct PriceInfoDca
+struct PriceInfo
 {
     double priceInSignal;
     double volumn;
