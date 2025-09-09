@@ -248,12 +248,12 @@ void OnTick()
      openBuyDca("lệnh BUY thứ: " + IntegerToString(countBuy) , volumnSize);
    }
    // DCA Dương CHO BUY
-   if((SymbolInfoDouble(_Symbol, SYMBOL_ASK) > priceLastedSign + dcaBuySpacePrice) &&  resultIndi == 1)
+   if((SymbolInfoDouble(_Symbol, SYMBOL_ASK) > priceLastedSign + dcaBuySpacePrice) &&  signal == 1)
    {
      openBuyDca("lệnh BUY thứ: " + IntegerToString(countBuy) , volumnSize);
    }
    // DCA DUONG  CHO SELL 
-   if((SymbolInfoDouble(_Symbol, SYMBOL_BID) < priceLastedSign - dcaSellSpacePrice) && countSell <  maxOpenSell && isDcaSell && resultIndi == -1) 
+   if((SymbolInfoDouble(_Symbol, SYMBOL_BID) < priceLastedSign - dcaSellSpacePrice) && countSell <  maxOpenSell && isDcaSell && signal == -1) 
    {
      openSellDca("lệnh SELL thứ: " + IntegerToString(countSell) , volumnSize);
    }
