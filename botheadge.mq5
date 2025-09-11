@@ -36,7 +36,6 @@ int countBuy = 0;
 int countSell = 0;
 double countProfitBuy = 0;
 double countProfitSell = 0;
-ulong ticketBuyLenhXaNhat = 0;
 int magicNumber = 12345;
 
 
@@ -47,6 +46,8 @@ int magicHedge = 54321;
 bool flagHedge =  false;
 CArrayULong *ticketHedges;
 double pricecheckClose = 0;
+
+
 
 // chỉ báo 
 int supertrendHandle;
@@ -136,11 +137,16 @@ void OnTick()
    datetime signalTime;// đánh giấu thới gian ghi nhận có tín hiệu 
    double signalPrice;
    int signal = GetHalfTrendSignal(signalTime, signalPrice);
-   
-   datetime latestTimes = 0;
-   double priceLastedSign = 0;
    double profitHedge = 0;
    double volumnHedge = 0;
+   
+   double priceMinBuy = DBL_MAX;
+   double priceMaxSell =DBL_MIN;
+   double priceMinSell = DBL_MAX;
+   double priceMaxHedgeSell = DBL_MIN;
+   double priceMinHedgeSell = DBL_MAX;
+   ulong ticketMaxHedge = 0;
+   ulong ticketMinHedge = 0;
    static datetime lastSignalTime = 0;
    if(signal != 0 && signalTime > lastSignalTime)
    {
@@ -171,8 +177,7 @@ void OnTick()
    }
    
    
-   double priceLastedHedge = 0;
-   datetime lastedtimeHedge = 0;
+
    countBuy = 0;
    countSell = 0;
    countProfitBuy = 0;
@@ -182,6 +187,7 @@ void OnTick()
    
    double priceLastedTrend = 0;
    datetime lastedtimeTrend = 0;
+   
    for(int i = 0 ; i < PositionsTotal() ; i ++){
       ulong ticket = PositionGetTicket(i);  // ← LẤY TICKET TRƯỚC
       if(ticket > 0 && PositionSelectByTicket(ticket))  // ← SELECT TICKET
@@ -200,21 +206,25 @@ void OnTick()
             {
                countBuy++;
                countProfitBuy += profit;
-               
-                
+               if(priceOpen < priceMinBuy)
+               {
+                  priceMinBuy = priceOpen;
+               }
             }
             else if(typePosition == POSITION_TYPE_SELL)
             {
                countSell++;
                countProfitSell += profit;
+               if( priceOpen > priceMaxSell)
+               {
+                  priceMaxSell = priceOpen;
+               }
+               
+               if(priceOpen < priceMinSell)
+               {
+                  priceMinSell = priceOpen;
+               }
             }
-            
-            if(positionTime > latestTimes)
-            {
-                latestTimes = positionTime;
-                priceLastedSign = priceOpen;
-            }
-           
          }
          
          if(positionMagic == magicHedge && positionSymbol == _Symbol){
@@ -224,39 +234,52 @@ void OnTick()
             if(ticketHedges != NULL) {
                ticketHedges.Add(ticket);
             }
-            // lệnh hedge gần nhất
-            if(positionTime > lastedtimeHedge)
+            if(priceOpen > priceMaxHedgeSell)
             {
-                lastedtimeHedge = positionTime;
-                priceLastedHedge = priceOpen;
+                priceMaxHedgeSell = priceOpen;
+                ticketMaxHedge = ticket;
             }
-         }
-         
-         if(positionMagic == magictrend && positionSymbol == _Symbol)
-         {
-           // tìm lệnh mở gần nhất
-            if(positionTime > lastedtimeTrend)
+            
+            if(priceOpen < priceMinHedgeSell)
             {
-                lastedtimeTrend = positionTime;
-                priceLastedTrend = priceOpen;
+                priceMinHedgeSell = priceOpen;
+                ticketMinHedge = ticket;
             }
          }
       }
    }
-   // DCA ÂM CHO BUY
-   if(priceLastedSign == 0 || (SymbolInfoDouble(_Symbol, SYMBOL_ASK) < priceLastedSign - dcaBuySpacePrice))
+   
+  
+   Print(countBuy);
+   Print(priceMinBuy);
+   Print(SymbolInfoDouble(_Symbol, SYMBOL_ASK));
+   if(countBuy == 0)
    {
-     openBuyDca("lệnh BUY thứ: " + IntegerToString(countBuy) , volumnSize);
+       openBuyDca("lệnh BUY thứ: " + IntegerToString(countBuy) , volumnSize);
+   }else
+   {
+       // dca âm cho buy
+       double spaceBuy =  priceMinBuy - SymbolInfoDouble(_Symbol, SYMBOL_ASK); 
+       if(spaceBuy > dcaBuySpacePrice)
+       {
+          openBuyDca("lệnh BUY thứ: " + IntegerToString(countBuy) , volumnSize);
+       }
    }
    
-   // DCA DUONG  CHO SELL 
-   if((SymbolInfoDouble(_Symbol, SYMBOL_BID) < priceLastedSign - dcaSellSpacePrice) && countSell <  maxOpenSell && isDcaSell && signal == -1) 
+   // dca dương cho sell
+   if(isDcaSell)
    {
-     openSellDca("lệnh SELL thứ: " + IntegerToString(countSell) , volumnSize);
-   }
-   if(isSellTrend && resultIndi == -1 && flagTrend && (SymbolInfoDouble(_Symbol, SYMBOL_BID)  <  priceLastedTrend - spaceSellTrend || priceLastedTrend == 0))
-   {
-        openSellTrend(volumnSize);
+     if(countSell == 0)
+      {
+          openSellDca("lệnh SELL thứ: " + IntegerToString(countSell) , volumnSize);
+      }else
+      {
+          double spaceSell =  priceMinSell - SymbolInfoDouble(_Symbol, SYMBOL_BID);
+          if(spaceSell > dcaSellSpacePrice)
+          {
+             openSellDca("lệnh SELL thứ: " + IntegerToString(countSell) , volumnSize);
+          }
+      }
    }
    
    // xác định giá mở hedge đầu tiên
@@ -273,8 +296,7 @@ void OnTick()
        double volumn = priceGap * volumnSize;
        if(volumn > 0)
        {
-        openHedgeSell(volumn ,"Lệnh SELL HEDGE thứ: " + IntegerToString(countHedge));
-        
+        openHedgeSell(volumn ,"Lệnh SELL HEDGE thứ: " + IntegerToString(countHedge));      
         priceOpenHedge = SymbolInfoDouble(_Symbol, SYMBOL_BID);
        }
        flagHedge = true;
@@ -282,15 +304,16 @@ void OnTick()
    else if(countHedge > 0)
    {
          // mở thêm hedge nếu số lượng volumn hedge chưa đủ mở hedge theo chiều dương
-         if(countHedge < divideHedge && setPriceHedgeGap > 0 &&  priceLastedHedge > 0 && SymbolInfoDouble(_Symbol, SYMBOL_BID) < priceLastedHedge - priceDcaHedge && resultIndi == -1)
+         double spaceDcaSellHedge =    SymbolInfoDouble(_Symbol, SYMBOL_BID) - priceMinHedgeSell;
+         if(countHedge < divideHedge && setPriceHedgeGap > 0 && spaceDcaSellHedge > priceDcaHedge)
          {
            double volumeH = volumnSize * double(setPriceHedgeGap);
            openHedgeSell(volumeH , "Lệnh SELL HEDGE thứ: " + IntegerToString(countHedge));
          }
-         
-         processHedgeClose();
+         processHedgeClose(ticketMinHedge , ticketMaxHedge);
    }
-  }
+
+}
   
 void openBuyDca(string comment , double lot)
 {
@@ -374,67 +397,36 @@ int filterTrend(){
       return indi1;
 }
 
-void processHedgeClose()
+void processHedgeClose(ulong minticket , ulong maxticket)
 {
-   if(ticketHedges == NULL) 
-      return;
-   double totalLotSize = 0;
-   int total = ticketHedges.Total();
-   ulong maxTicketHedge;
-   datetime checkTimeMaxTicketHedge = TimeCurrent();
    
-   ulong minTicketHedge = 0;
-   datetime checkTimeMinticketHedge = 0;
-  
-   for(int i = 0; i < total; i++)
+   double minHedge =  0;
+   if(PositionSelectByTicket(minticket) && minticket > 0)
    {
-       ulong value = ticketHedges.At(i); 
-       if(value > 0 && PositionSelectByTicket(value))
-       {
-         datetime positionTime = (datetime)PositionGetInteger(POSITION_TIME);
-         
-         // tìm max hedge
-         if(positionTime < checkTimeMaxTicketHedge)
-         {
-            maxTicketHedge = value;
-            checkTimeMaxTicketHedge = positionTime;
-         }
-          // tìm min hedge
-         if(positionTime > checkTimeMinticketHedge)
-         {
-            minTicketHedge = value;
-            checkTimeMinticketHedge = positionTime;
-         }
-       }
-      
-   }
-   double priceOpenHedgeFrist =  0;
-   if(PositionSelectByTicket(minTicketHedge) && minTicketHedge > 0)
-   {
-      priceOpenHedgeFrist = PositionGetDouble(POSITION_PRICE_OPEN);
+      minHedge = PositionGetDouble(POSITION_PRICE_OPEN);
    }
    
-   double priceOpenHedgeMax =  0;
-   if(PositionSelectByTicket(maxTicketHedge) && maxTicketHedge > 0)
+   double maxHedge =  0;
+   if(PositionSelectByTicket(maxticket) && maxticket > 0)
    {
-      priceOpenHedgeMax = PositionGetDouble(POSITION_PRICE_OPEN);
+      maxHedge = PositionGetDouble(POSITION_PRICE_OPEN);
    }
    
    // close 1 phần lệnh hedge xa nhất nếu giá tiếp tục đi ngược lần đầu tiên
-   if(flagHedge && SymbolInfoDouble(_Symbol, SYMBOL_BID) > priceOpenHedgeFrist + (atrValue * 0.5) )
+   if(flagHedge && SymbolInfoDouble(_Symbol, SYMBOL_BID) > minHedge + (atrValue * 0.5) )
    {
-      ClosePartialPosition(maxTicketHedge , volumnSize);
+      ClosePartialPosition(minticket , volumnSize);
       pricecheckClose = SymbolInfoDouble(_Symbol, SYMBOL_BID);
       flagHedge = false;
    }
    
    if(!flagHedge && SymbolInfoDouble(_Symbol, SYMBOL_BID) > pricecheckClose + (atrValue * 0.5) )
    {
-      ClosePartialPosition(maxTicketHedge , volumnSize);
+      ClosePartialPosition(minticket , volumnSize);
       pricecheckClose = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    }
    
-   if(SymbolInfoDouble(_Symbol, SYMBOL_BID) < priceOpenHedgeFrist + atrValue)
+   if(SymbolInfoDouble(_Symbol, SYMBOL_BID) < maxHedge - atrValue)
    {
       CloseAllSellPositions(magicHedge);
    }
@@ -512,8 +504,6 @@ int GetHalfTrendSignal(datetime &signalTime, double &signalPrice)
 {
    signalTime = 0;
    signalPrice = 0.0;
-  
-   
    if(halfTrendHandle == INVALID_HANDLE) 
       return 0;
 
