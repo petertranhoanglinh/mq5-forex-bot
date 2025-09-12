@@ -21,14 +21,18 @@ input double valueDistance =  10; // khoảng giá thuận hedge để có thể
 input int divideHedge = 5; // Số lượng chia nhỏ lệnh cần hedge
 
 input group "__Set Các chức năng liên quan tới Sell DCA";
-input double maxOpenSell = 20;
+input double maxOpenSell = 10;
 input double dcaSellSpacePrice = 3;
 input bool isDcaSell = true; // sử dụng dca sell
 input double tpSellPrice = 3; //  lợi nhuận mong muốn mỗi lệnh DCA SELL
+input double priceUpDcaSell = 0;// 
+input double priceDownDcaSell = 0;//
+input double volumnSell = 0.1; // lot cho lệnh SELL DCA
+
 
 input group "__Set Bật chức năng sell theo trend";
 input bool isSellTrend = true;
-input double spaceSellTrend = 0.5; // KHOẢNG CÁCH GIÁ MỞ THÊM LỆNH SELL TREND;
+input double volumnTrend = 0.1; // lot cho lệnh SELL TREND
 
 // biến liên quan tới lệnh dca
 int countLenh = 0;
@@ -61,6 +65,9 @@ int resultIndi = 0 ;
 // biến liên quan tới sell trend
 int magictrend = 555;
 bool flagTrend = false;
+double priceMaxTrend = 0;
+double priceMinTrend = 0;
+
 
 
 
@@ -158,13 +165,14 @@ void OnTick()
       if(signal == -1)
       {
        flagTrend = true;
+       if(isSellTrend)
+       {
+         openSellTrend(volumnTrend);
+       }
       }else{
        flagTrend = false;
       }
-   }else{
-      flagTrend = false;
    }
-   
    // xác định tín hiệu rõ ràng
    if(resultIndi == 1 && signal == 1)
    {
@@ -246,6 +254,19 @@ void OnTick()
                 ticketMinHedge = ticket;
             }
          }
+         
+         if(positionMagic == magictrend && positionSymbol == _Symbol)
+         {
+          
+          if(priceOpen < priceMinTrend)
+          {
+            priceMinSell = priceOpen;
+          }
+          if(priceOpen > priceMaxTrend)
+          {
+            priceMaxTrend = priceOpen;
+          }         
+         }
       }
    }
    
@@ -266,22 +287,22 @@ void OnTick()
        }
    }
    
-   // dca dương cho sell
    if(isDcaSell)
    {
-     if(countSell == 0)
+     if(countSell == 0 && signal == -1)
       {
-          openSellDca("lệnh SELL thứ: " + IntegerToString(countSell) , volumnSize);
-      }else
-      {
-          double spaceSell =  priceMinSell - SymbolInfoDouble(_Symbol, SYMBOL_BID);
+          openSellDca("lệnh SELL thứ: " + IntegerToString(countSell) , volumnSell);
+      }
+      else if(countSell != 0 && signal == -1)
+      {  
+          // dca âm cho sell
+          double spaceSell =  SymbolInfoDouble(_Symbol, SYMBOL_BID) - priceMaxSell;
           if(spaceSell > dcaSellSpacePrice)
           {
-             openSellDca("lệnh SELL thứ: " + IntegerToString(countSell) , volumnSize);
+             openSellDca("lệnh SELL thứ: " + IntegerToString(countSell) , volumnSell);
           }
       }
    }
-   
    // xác định giá mở hedge đầu tiên
    if(countHedge == 0  && countBuy >  maxLenhOpenHedge && signal == -1 )
    {
@@ -304,7 +325,7 @@ void OnTick()
    else if(countHedge > 0)
    {
          // mở thêm hedge nếu số lượng volumn hedge chưa đủ mở hedge theo chiều dương
-         double spaceDcaSellHedge =    SymbolInfoDouble(_Symbol, SYMBOL_BID) - priceMinHedgeSell;
+         double spaceDcaSellHedge =    priceMinHedgeSell - SymbolInfoDouble(_Symbol, SYMBOL_BID);
          if(countHedge < divideHedge && setPriceHedgeGap > 0 && spaceDcaSellHedge > priceDcaHedge)
          {
            double volumeH = volumnSize * double(setPriceHedgeGap);
@@ -312,7 +333,6 @@ void OnTick()
          }
          processHedgeClose(ticketMinHedge , ticketMaxHedge);
    }
-
 }
   
 void openBuyDca(string comment , double lot)
