@@ -89,10 +89,7 @@ void OnTick()
         Print("MARKET CLOSE BOT SHUTDOWN, " , GetTimeVN());
         return;
     }
-    if((TimeCurrent() - timelastedSendTelegram) >= 60*60)
-    {
-         timelastedSendTelegram = TimeCurrent();
-    }
+    
     double minPriceBuy = DBL_MAX;
     double hightPriceBuyDuong =  0;
     double lowPriceSellDuong = DBL_MAX;
@@ -157,6 +154,12 @@ void OnTick()
      // DCA DƯƠNG
      string report = ReportAccount(minPriceBuyAm , hightPriceSellAm , lowPriceSellDuong , hightPriceBuyDuong);
      ShowReport(minPriceBuyAm , hightPriceSellAm , lowPriceSellDuong , hightPriceBuyDuong);
+     if((TimeCurrent() - timelastedSendTelegram) >= 60*15)
+       {
+            timelastedSendTelegram = TimeCurrent();
+            SendTelegramMessage(report);
+            
+       }
      if(totalPositonBUY == 0 && totalPositonSELL == 0)
      {
         double avgPrice = MA_Custom(_Symbol ,PERIOD_M5 , 14);
