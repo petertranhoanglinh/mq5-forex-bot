@@ -326,17 +326,17 @@ void OnTick()
           
            if(acctionTelegram == "check_profit_sell")
           {
-            SendTelegramMessage("Profit sell hiện tại là: " + checkProfit(POSITION_TYPE_SELL) );
+            SendTelegramMessage("Profit sell: " + checkProfit(POSITION_TYPE_SELL) );
           }
           
            if(acctionTelegram == "check_profit_buy")
           {
-            SendTelegramMessage("Profit buy hiện tại là: " +   checkProfit(POSITION_TYPE_BUY) );
+            SendTelegramMessage("Profit buy: " +   checkProfit(POSITION_TYPE_BUY) );
           }
           
            if(acctionTelegram == "check_profit")
           {
-            SendTelegramMessage("total profit hiện tại là: " +   checkProfit(-999) );
+            SendTelegramMessage("total profit: " +   checkProfit(-999) );
           }
           timelastedSendTelegram = TimeCurrent();
           
