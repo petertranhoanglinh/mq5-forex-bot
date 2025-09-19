@@ -33,31 +33,34 @@ input double dcaPriceSellDuong = 1;// khoảng giá DCA SELL DƯƠNG
 input double tpSellDcaDuong  = 0;
 input bool  isDcaSellDuong = true; // BẬT/ TẮT
 
-input double checkProfitClose = 100; // Lợi nhuận mỗi lệnh để đóng DCA DƯƠNG
-
 input group "_Dời SL TP DCA DƯƠNG NÂNG CAO"; 
-input double tp_sl_dca_duong = 20; // lợi nhuận nếu tổng DCA dương đạt tới sẽ dời SL
+input double tp_sl_dca_duong = 50; // lợi nhuận nếu tổng DCA dương đạt tới sẽ dời SL
+input double checkProfitClose = 100; // Lợi nhuận tổng để đóng DCA DƯƠNG
 
+input group "_Hedge Nâng Cao nếu tài khoản âm quá nhiều"; 
 
-
-   
+input double profitLostPram = -100; // set lệnh nếu profit nhỏ hơn sẽ dời sl theo tín hiệu rsi
+input double new_tp_dca_am = 30;
+input double new_sl_dca_am = 30;
 // -------------------------
 // ⚙️ Cài đặt nâng cao khi bot gặp sự cố
 // -------------------------
 input group "_Search app telegram flow_bot_dca_linhlinh nhấn /start)"; 
 input string t_code_telegram = "1180457993";// 📩 Nhập chatID Telegram (/start search bot @userinfobot get id) 
-input int serverOffSet = 7; // ⏰ Nhập chênh lệch múi giờ so với server (giờ Việt Nam)
-input double drawdownSendMessage = 20;// 📩 Nhập số phầm trăm drawdown tới bot sẽ send message cho bạn
+input int serverOffSet = 7; // ⏰ Nhập chênh lệch server
+input double drawdownSendMessage = 20;// 📩 Nhập % drawdown bot sẽ message 
+input bool isShutDownBotIsFail = false;// chỉ nên bật ngày fed công bố lãi suất
 
 int magicNumberDuong = 1234567;
 int magicNumberAm = 54321;
+int magicNumberHedge = 02231;
 double countProfit = 0;
 bool flagBotActive = true;
 
+
+
 datetime timelastedSendTelegram = 0;
-
-
-
+datetime time_check_sp_tp_dca_am = 0;
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
@@ -76,20 +79,27 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
-    checkDrawDown();
-    calculatorSLTP();
     
     if(!flagBotActive)
     {
-      SendTelegramMessage("BOT FAIL PLEASE CHECK IT: " + GetTimeVN());
-      return;
+      SendTelegramMessage("BOT FAIL FOR ACCOUNT: "+AccountInfoInteger(ACCOUNT_LOGIN)+" "+AccountInfoString(ACCOUNT_NAME)+GetTimeVN() , true);
+      if(isShutDownBotIsFail)
+      {
+        return;
+      }
     }
      if(!IsMarketOpen(Symbol()))
     {
         Print("MARKET CLOSE BOT SHUTDOWN, " , GetTimeVN());
         return;
     }
-    
+    checkDrawDown();
+    calculator_Sl_Dca_Duong();
+    if((TimeCurrent() - time_check_sp_tp_dca_am) >= 60*5)
+    {
+         time_check_sp_tp_dca_am = TimeCurrent();
+         calculator_Sl_Dca_Am();
+    }
     double minPriceBuy = DBL_MAX;
     double hightPriceBuyDuong =  0;
     double lowPriceSellDuong = DBL_MAX;
@@ -213,6 +223,140 @@ void OnTick()
          }
      }
 }
+
+
+// --------------------------------------------------logic bot function----------------------------------------------------------------------------------------------------------------
+
+void calculator_Sl_Dca_Duong(){
+   ulong arrWin[];
+   int positonType  ;
+   double profit = 0;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+    {
+        ulong ticket = PositionGetTicket(i);
+        double profitPostion = PositionGetDouble(POSITION_PROFIT);
+        if(ticket > 0 && PositionSelectByTicket(ticket))
+        {
+            if(PositionGetInteger(POSITION_MAGIC) == magicNumberDuong){        
+               profit = profit + profitPostion;
+               positonType = PositionGetInteger(POSITION_TYPE);
+               if(profit > 0)
+               {
+                  AddToArray(arrWin, ticket);
+               }
+            }
+           
+        }
+    }
+    // 
+    if(profit > tp_sl_dca_duong)
+    {
+       // update sl
+       for(int i = 0; i < ArraySize(arrWin); i++)
+       {
+         ulong ticket = arrWin[i];
+         Print("TICKET CẦN SL LÀ: ", ticket);
+         double currentPrice;
+         if(positonType == POSITION_TYPE_BUY)
+             currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         else
+             currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         if(PositionSelectByTicket(ticket)){
+            double profit = PositionGetDouble(POSITION_PROFIT);
+            double volumn =  PositionGetDouble(POSITION_VOLUME);
+            double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+            double sl = PositionGetDouble(POSITION_SL);
+            double newSl = 0;
+            if(positonType == POSITION_TYPE_BUY)
+            {
+               newSl = openPrice  +  ((currentPrice - openPrice) / 2);
+            }else{
+               newSl = openPrice  - ((openPrice - currentPrice) / 2);
+            }
+             if(sl == 0)
+            {
+              ModifyPositionByTicket(ticket , newSl , 0);
+            }
+           
+         }
+         
+       }
+    }
+
+}
+
+void calculator_Sl_Dca_Am(){
+   ulong arrLost[];
+   double profit = 0;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+        ulong ticket = PositionGetTicket(i);
+        double profitPostion = PositionGetDouble(POSITION_PROFIT);
+        if(ticket > 0 && PositionSelectByTicket(ticket))
+        {
+            if(PositionGetInteger(POSITION_MAGIC) == magicNumberAm){        
+               profit = profit + profitPostion;
+               if(profit < profitLostPram)
+               {
+                  AddToArray(arrLost, ticket);
+               }
+            }
+        }
+    }
+    double rsi = CalculateRSI(14 ,  PERIOD_H1);
+    int type = 0;
+    
+    if(rsi < 30){
+      type = 1; // giá có xu hướng tăng
+    }
+    if(rsi > 70)
+    {
+     type = -1; // giá có xu hướng giảm
+    }
+    
+    if(type == 1)
+    {
+       for(int i = 0; i < ArraySize(arrLost); i++)
+       {
+         ulong ticket = arrLost[i];
+         Print("TICKET CẦN SL LÀ: ", ticket);
+         double currentPrice;
+         if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+             currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         else
+             currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         if(PositionSelectByTicket(ticket)){
+            double profit = PositionGetDouble(POSITION_PROFIT);
+            double volumn =  PositionGetDouble(POSITION_VOLUME);
+            double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+            double sl = PositionGetDouble(POSITION_SL);
+            double newSl = 0;
+            double newTp = 0;
+            double distanceIn1Price = volumn / 0.01 ;
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+            {
+               newSl = currentPrice - (new_sl_dca_am / distanceIn1Price);
+               newTp = currentPrice + (new_tp_dca_am / distanceIn1Price);
+            }else{
+               newSl = currentPrice + (new_sl_dca_am / distanceIn1Price);
+               newTp = currentPrice - (new_tp_dca_am / distanceIn1Price);
+            }
+            if(sl == 0)
+            {
+              ModifyPositionByTicket(ticket , newSl , newTp);
+            }
+           
+         }
+         
+       }
+    }
+    
+    
+     
+    
+}
+// --------------------------------------------------end logic bot function----------------------------------------------------------------------------------------------------------------
+
 
 // --------------------------------------------------common function---------------------------------------------------------------------------------------------------------------
 
@@ -381,11 +525,15 @@ string GetTimeVN()
 }
 
 
-bool SendTelegramMessage(string text)
+bool SendTelegramMessage(string text , bool disableNotification = false)
 {
    string token  = "7542004417:AAF43NYwPUG3p9i3CWjXMV6j1C_qIrfZHhM";
    string url  = "https://api.telegram.org/bot" + token + "/sendMessage";
-   string data = "chat_id=" +t_code_telegram + "&text=" + text + "&disable_notification=false";
+  
+   string data = "chat_id=" +t_code_telegram + "&text=" + text;
+   if(disableNotification == false){
+      data = data + "&disable_notification=false";
+   }
    char post[];
    StringToCharArray(data, post);
    char result[];
@@ -412,7 +560,7 @@ bool SendTelegramMessage(string text)
 string ReportAccount(double minPriceBuyAmParam , double hightPriceSellAmParam , double lowPriceSellDuongParam , double hightPriceBuyDuongParam)
 {
    string accountInfo = "";
-   accountInfo += "===== 📊 ACCOUNT REPORT =====\n";
+   accountInfo += "===== 📊 ACCOUNT REPORT: "+AccountInfoInteger(ACCOUNT_LOGIN)+" "+AccountInfoString(ACCOUNT_NAME)+"=====\n" ;
    accountInfo += "===== INFO DCA AM =====\n";
    accountInfo += "minPriceBuyAmParam: "   + DoubleToString(minPriceBuyAmParam, 2) + "\n";
    accountInfo += "hightPriceSellAmParam: "   + DoubleToString(hightPriceSellAmParam, 2) + "\n";
@@ -432,11 +580,9 @@ void checkDrawDown()
    double drawdownCurrent = 0.0;
    if(balance > 0)
       drawdownCurrent = (balance - equity) / balance * 100.0;
-   
-   
    if(drawdownCurrent > drawdownSendMessage)
    {
-      SendTelegramMessage("ACCOUNT WARNING PLEASE CHECK!!!!!!!! DrawDownCurrent: " + drawdownSendMessage);
+      SendTelegramMessage("ACCOUNT WARNING PLEASE CHECK! DrawDownCurrent: " + drawdownSendMessage);
    }
 }
 
@@ -448,7 +594,7 @@ void ShowReport(double minPriceBuyAmParam , double hightPriceSellAmParam , doubl
    color textColor = clrLime;
    
    // Tạo các label riêng biệt
-   CreateLabel("Report_Title", "===== ACCOUNT REPORT =====", 10, startY, fontSize, textColor);
+   CreateLabel("Report_Title", "===== ACCOUNT REPORT =====" + AccountInfoInteger(ACCOUNT_LOGIN), 10, startY, fontSize, textColor);
    CreateLabel("Report_Line1", "minPriceBuyAmParam  : " + DoubleToString(minPriceBuyAmParam, 2), 10, startY + lineHeight, fontSize, textColor);
    CreateLabel("Report_Line2", "hightPriceSellAmParam  : " + DoubleToString(hightPriceSellAmParam, 2), 10, startY + lineHeight*2, fontSize, textColor);
    CreateLabel("Report_Line3", "lowPriceSellDuongParam : " + DoubleToString(lowPriceSellDuongParam, 2), 10, startY + lineHeight*3, fontSize, textColor);
@@ -456,7 +602,6 @@ void ShowReport(double minPriceBuyAmParam , double hightPriceSellAmParam , doubl
    CreateLabel("Report_Sep", "--------------------------", 10, startY + lineHeight*6, fontSize, textColor);
    CreateLabel("Report_Bal", "Balance : " + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2), 10, startY + lineHeight*7, fontSize, textColor);
    CreateLabel("Report_Eq", "Equity  : " + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2), 10, startY + lineHeight*8, fontSize, textColor);
-   
    ChartRedraw();
 }
 
@@ -539,65 +684,29 @@ void ModifyPositionByTicket(ulong ticket, double newSL, double newTP)
               " | Retcode=", result.retcode);
 }
 
-
-void calculatorSLTP(){
-
-   ulong arrWin[];
-   ulong arrLost[];
-   int positonType  ;
-   double profit = 0;
-   for(int i = PositionsTotal() - 1; i >= 0; i--)
+double CalculateRSI(int period ,  ENUM_TIMEFRAMES timeframe)
+{
+    double gain = 0;
+    double loss = 0;
+    // Get closing prices
+    double closePrice[];
+    int bars = CopyClose(_Symbol, timeframe, 0, period+1, closePrice);
+    if(bars <= period) return 0; 
+    // Calculate gains and losses
+    for(int i=1; i<=period; i++)
     {
-        ulong ticket = PositionGetTicket(i);
-        double profitPostion = PositionGetDouble(POSITION_PROFIT);
-        if(ticket > 0 && PositionSelectByTicket(ticket))
-        {
-            if(PositionGetInteger(POSITION_MAGIC) == magicNumberDuong){        
-               profit = profit + profitPostion;
-               positonType = PositionGetInteger(POSITION_TYPE);
-               if(profit > 0)
-               {
-                  AddToArray(arrWin, ticket);
-               }
-            }
-           
-        }
+        double change = closePrice[i] - closePrice[i-1];
+        if(change > 0) gain += change;
+        else loss -= change; 
     }
-    
-   
-    // 
-    if(profit > tp_sl_dca_duong)
-    {
-       // update sl
-       for(int i = 0; i < ArraySize(arrWin); i++)
-       {
-         ulong ticket = arrWin[i];
-         Print("TICKET CẦN SL LÀ: ", ticket);
-         double currentPrice;
-         if(positonType == POSITION_TYPE_BUY)
-             currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-         else
-             currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-         if(PositionSelectByTicket(ticket)){
-            double profit = PositionGetDouble(POSITION_PROFIT);
-            double volumn =  PositionGetDouble(POSITION_VOLUME);
-            double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
-            double newSl = 0;
-            if(positonType == POSITION_TYPE_BUY)
-            {
-               newSl = openPrice  +  ((currentPrice - openPrice) / 2);
-            }else{
-               newSl = openPrice  - ((openPrice - currentPrice) / 2);
-            }
-            ModifyPositionByTicket(ticket , newSl , 0);
-         }
-         
-       }
-    }
-    
-    
-    
-   
-
+    // Average gain and loss
+    gain /= period;
+    loss /= period;
+    if(loss == 0) return 100; 
+    double RS = gain / loss;
+    double RSI = 100 - (100 / (1 + RS));
+    return RSI;
 }
+
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
+
