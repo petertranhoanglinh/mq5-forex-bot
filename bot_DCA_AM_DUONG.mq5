@@ -36,12 +36,22 @@ input bool  isDcaSellDuong = true; // BẬT/ TẮT
 input group "_Dời SL TP DCA DƯƠNG NÂNG CAO"; 
 input double tp_sl_dca_duong = 50; // lợi nhuận nếu tổng DCA dương đạt tới sẽ dời SL
 input double checkProfitClose = 100; // Lợi nhuận tổng để đóng DCA DƯƠNG
+input double new_tp_dca_duong = 30; // dời sl tp khi đổi trend
+input double new_sl_dca_duong = 30; // dời sl tp khi đổi trend
 
-input group "_Hedge Nâng Cao nếu tài khoản âm quá nhiều"; 
-
+input group "_Dời SL_TP DCA ÂM NÂNG CAO"; 
 input double profitLostPram = -100; // set lệnh nếu profit nhỏ hơn sẽ dời sl theo tín hiệu rsi
 input double new_tp_dca_am = 30;
 input double new_sl_dca_am = 30;
+
+input group "_Bật chức năng DCA dương theo trend";
+input bool isDcaFlowTrend = true; // bật tắt chức năng dca theo trend
+
+input group "_Option tia dca âm dương";
+input bool is_tia_dca_duong = false; // bật tắt chức năng dca dương
+input bool is_tia_dca_am = false; // bật tắt chức năng dca âm
+input double conditionPriceProfitTia = 1000; // điều kiện tỉa lệnh
+ 
 // -------------------------
 // ⚙️ Cài đặt nâng cao khi bot gặp sự cố
 // -------------------------
@@ -56,6 +66,7 @@ int magicNumberAm = 54321;
 int magicNumberHedge = 02231;
 double countProfit = 0;
 bool flagBotActive = true;
+int trend = 0;
 
 
 
@@ -88,17 +99,28 @@ void OnTick()
         return;
       }
     }
-     if(!IsMarketOpen(Symbol()))
+     if(!isMarketOpen())
     {
         Print("MARKET CLOSE BOT SHUTDOWN, " , GetTimeVN());
         return;
     }
     checkDrawDown();
-    calculator_Sl_Dca_Duong();
-    if((TimeCurrent() - time_check_sp_tp_dca_am) >= 60*5)
-    {
-         time_check_sp_tp_dca_am = TimeCurrent();
-         calculator_Sl_Dca_Am();
+  
+    // cập nhập giá
+     double rsi = CalculateRSI(14 ,  PERIOD_H1);
+    if(isDcaFlowTrend){
+      if(rsi< 30)
+      {
+         trend = 1;
+      }
+      if(rsi > 70)
+      {
+         trend = -1;
+      }
+      if(rsi > 30 && rsi < 70)
+      {
+         trend = 0;
+      }
     }
     double minPriceBuy = DBL_MAX;
     double hightPriceBuyDuong =  0;
@@ -108,20 +130,27 @@ void OnTick()
     int totalPositonSELL = 0;
     double profitBuyDuong = 0;
     double profitSellDuong = 0;
+    double profitTrend = 0;
     // avairable âm
     double minPriceBuyAm = DBL_MAX;
     double hightPriceSellAm = 0;
     int totalPositonAmBUY = 0;
     int totalPositonAmSELL = 0;
+    
+    int total_dca_buy_duong_flow_trend = 0;
+    int total_dca_sell_duong_flow_trend = 0;
+    double high_buy_dca_duong_flow_trend = 0;
+    double low_sell_dca_duong_flow_trend = DBL_MAX;
     for(int i = 0 ; i <  PositionsTotal() ; i ++ ){
          ulong ticket = PositionGetTicket(i);
          int typePosition = PositionGetInteger(POSITION_TYPE);
          int positionMagic = PositionGetInteger(POSITION_MAGIC);
          double pricePosition = PositionGetDouble(POSITION_PRICE_OPEN);
          double volumn = PositionGetDouble(POSITION_VOLUME);
+         string comment  = PositionGetString(POSITION_COMMENT);
          datetime positionTime = (datetime)PositionGetInteger(POSITION_TIME);
          double profit = PositionGetDouble(POSITION_PROFIT);
-         if(magicNumberDuong == positionMagic)
+         if(magicNumberDuong == positionMagic && comment != "TREND")
          {
             if(typePosition == POSITION_TYPE_BUY){
                totalPositonBUY ++ ; 
@@ -132,6 +161,7 @@ void OnTick()
                   hightPriceBuyDuong = pricePosition;
                }
                profitBuyDuong = profitBuyDuong + profit;
+               
             }else {
                totalPositonSELL++ ; 
                if(pricePosition > hightPriceSELL){
@@ -142,6 +172,22 @@ void OnTick()
                }
                 profitSellDuong = profitSellDuong + profit;
             }
+         }
+         if(magicNumberDuong == positionMagic && comment == "TREND")
+         {
+            if(typePosition == POSITION_TYPE_BUY){
+              total_dca_buy_duong_flow_trend ++;
+              if(pricePosition > high_buy_dca_duong_flow_trend ){
+                  high_buy_dca_duong_flow_trend = pricePosition;
+              }
+               
+            }else {
+              total_dca_sell_duong_flow_trend ++;
+              if(pricePosition < low_sell_dca_duong_flow_trend){
+                  low_sell_dca_duong_flow_trend = pricePosition;
+              }
+            }
+            profitTrend = profitTrend + profit;
          }
          
          if(magicNumberAm == positionMagic)
@@ -162,12 +208,10 @@ void OnTick()
          }
      }
      // DCA DƯƠNG
-     string report = ReportAccount(minPriceBuyAm , hightPriceSellAm , lowPriceSellDuong , hightPriceBuyDuong);
      ShowReport(minPriceBuyAm , hightPriceSellAm , lowPriceSellDuong , hightPriceBuyDuong);
      if((TimeCurrent() - timelastedSendTelegram) >= 60*15)
        {
             timelastedSendTelegram = TimeCurrent();
-            SendTelegramMessage(report);
             
        }
      if(totalPositonBUY == 0 && totalPositonSELL == 0)
@@ -181,21 +225,43 @@ void OnTick()
         {
           flagBotActive = openSell(lotSellDuong , 0 , tpSellDcaDuong , magicNumberDuong , "SELL +|  "  + IntegerToString(totalPositonSELL) + " AT: " + GetTimeVN());
         }
+        
      }else{
-         if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong && totalPositonSELL == 0)
+         
+         if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong)
          {
              flagBotActive = openBuy(lotBuyDuong , 0 , 0 , magicNumberDuong , "BUY +| "  + IntegerToString(totalPositonBUY) + " AT: " + GetTimeVN());   
          }
-         if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong && totalPositonBUY == 0){
+         if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong){
              flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL +| "  + IntegerToString(totalPositonSELL) + " AT: " + GetTimeVN());
          }
          
-         if(profitBuyDuong + profitSellDuong > checkProfitClose)
+         if(profitBuyDuong + profitSellDuong + profitTrend > checkProfitClose)
          {
             flagBotActive = CloseAllBuyPositions(magicNumberDuong);
             flagBotActive = CloseAllSellPositions(magicNumberDuong);
          }
      }
+     // dca duong theo trend
+    if(isDcaFlowTrend)
+    {
+       double artValue = GetATRValue(PERIOD_M5);
+       if(artValue == 0)
+       {
+         artValue = 10;
+       }
+
+        
+        if( (SymbolInfoDouble(_Symbol, SYMBOL_ASK) - high_buy_dca_duong_flow_trend > dcaPriceBuyDuong && trend == 1) || (trend == 1 && high_buy_dca_duong_flow_trend == 0) )  
+        {
+           flagBotActive = openBuy(lotBuyDuong , artValue , artValue , magicNumberDuong , "TREND" );
+        }
+        
+         if( (low_sell_dca_duong_flow_trend - SymbolInfoDouble(_Symbol, SYMBOL_BID) > dcaPriceSellDuong && trend == -1) || (trend == -1 && low_sell_dca_duong_flow_trend == DBL_MAX) )
+        {
+           flagBotActive = openSell(lotSellDuong , artValue , artValue , magicNumberDuong , "TREND" );
+        }
+    }
      
      // DCA ÂM
      if(totalPositonAmBUY == 0 && totalPositonAmSELL == 0)
@@ -222,6 +288,23 @@ void OnTick()
            flagBotActive = openSell(lotSellAm , 0 , tpSellAm , magicNumberAm , "SELL -|  "  + IntegerToString(totalPositonAmSELL) + " AT: " + GetTimeVN());
          }
      }
+     
+     double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+     double equility = AccountInfoDouble(ACCOUNT_EQUITY);
+     
+    if(balance - equility >  conditionPriceProfitTia){
+       if(is_tia_dca_duong){
+         calculator_Sl_Dca_Duong();
+       }
+       if((TimeCurrent() - time_check_sp_tp_dca_am) >= 60*5)
+       {
+           time_check_sp_tp_dca_am = TimeCurrent();
+           if(is_tia_dca_am){
+             calculator_Sl_Dca_Am();
+           }
+       }
+    }
+   
 }
 
 
@@ -229,6 +312,7 @@ void OnTick()
 
 void calculator_Sl_Dca_Duong(){
    ulong arrWin[];
+   ulong arrLost[];
    int positonType  ;
    double profit = 0;
    for(int i = PositionsTotal() - 1; i >= 0; i--)
@@ -243,6 +327,9 @@ void calculator_Sl_Dca_Duong(){
                if(profit > 0)
                {
                   AddToArray(arrWin, ticket);
+               }
+               if(profit < profitLostPram){
+                 AddToArray(arrLost, ticket);
                }
             }
            
@@ -267,6 +354,7 @@ void calculator_Sl_Dca_Duong(){
             double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
             double sl = PositionGetDouble(POSITION_SL);
             double newSl = 0;
+            
             if(positonType == POSITION_TYPE_BUY)
             {
                newSl = openPrice  +  ((currentPrice - openPrice) / 2);
@@ -282,7 +370,57 @@ void calculator_Sl_Dca_Duong(){
          
        }
     }
-
+    
+   double rsi = CalculateRSI(14 ,  PERIOD_H1);
+   int trend = 0;
+   if(rsi< 30)
+   {
+      trend = 1;
+   }
+   if(rsi > 70)
+   {
+      trend = -1;
+   }
+   
+   if(trend != 0)
+   {
+     for(int i = 0; i < ArraySize(arrLost); i++)
+     {
+         ulong ticket = arrLost[i];
+         Print("TICKET CẦN SL LÀ: ", ticket);
+         double currentPrice;
+         if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+             currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         else
+             currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         if(PositionSelectByTicket(ticket)){
+            double profit = PositionGetDouble(POSITION_PROFIT);
+            double volumn =  PositionGetDouble(POSITION_VOLUME);
+            double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+            double sl = PositionGetDouble(POSITION_SL);
+            double newSl = 0;
+            double newTp = 0;
+            double distanceIn1Price = volumn / 0.01 ;
+            
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && trend == 1)
+            {
+               newSl = currentPrice + (new_sl_dca_duong / distanceIn1Price);
+               newTp = currentPrice - (new_tp_dca_duong / distanceIn1Price);
+            }
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && trend == -1)
+            {
+               newSl = currentPrice - (new_sl_dca_duong / distanceIn1Price);
+               newTp = currentPrice + (new_tp_dca_duong / distanceIn1Price);
+            }
+            if(sl == 0)
+            {
+              ModifyPositionByTicket(ticket , newSl , newTp);
+            }
+            
+         }
+   
+      }
+   }
 }
 
 void calculator_Sl_Dca_Am(){
@@ -314,7 +452,41 @@ void calculator_Sl_Dca_Am(){
      type = -1; // giá có xu hướng giảm
     }
     
-    if(type == 1)
+    if(type == 1) // giá tăng dời sl cho lệnh sell thôi
+    {
+       for(int i = 0; i < ArraySize(arrLost); i++)
+       {
+         ulong ticket = arrLost[i];
+         Print("TICKET CẦN SL LÀ: ", ticket);
+         double currentPrice;
+         if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+             currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+         else
+             currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+         if(PositionSelectByTicket(ticket)){
+            double profit = PositionGetDouble(POSITION_PROFIT);
+            double volumn =  PositionGetDouble(POSITION_VOLUME);
+            double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+            double sl = PositionGetDouble(POSITION_SL);
+            double newSl = 0;
+            double newTp = 0;
+            double distanceIn1Price = volumn / 0.01 ;
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
+            {
+               newSl = currentPrice + (new_sl_dca_duong / distanceIn1Price);
+               newTp = currentPrice - (new_sl_dca_duong / distanceIn1Price);
+            }
+            if(sl == 0)
+            {
+              ModifyPositionByTicket(ticket , newSl , newTp);
+            }
+           
+         }
+         
+       }
+    }
+    
+     if(type == -1) // giá giảm  dời sl cho lệnh buy thôi
     {
        for(int i = 0; i < ArraySize(arrLost); i++)
        {
@@ -337,9 +509,6 @@ void calculator_Sl_Dca_Am(){
             {
                newSl = currentPrice - (new_sl_dca_am / distanceIn1Price);
                newTp = currentPrice + (new_tp_dca_am / distanceIn1Price);
-            }else{
-               newSl = currentPrice + (new_sl_dca_am / distanceIn1Price);
-               newTp = currentPrice - (new_tp_dca_am / distanceIn1Price);
             }
             if(sl == 0)
             {
@@ -467,51 +636,26 @@ bool CloseAllSellPositions(int magic = -1)
     return result;
 }
 
-bool IsMarketOpen(string symbol)
+// Hàm kiểm tra thị trường vàng có đang mở không
+bool isMarketOpen()
 {
-    // Kiểm tra symbol có tồn tại không
-    if(!SymbolInfoInteger(symbol, SYMBOL_SELECT))
-        return false;
-    // Kiểm tra chế độ giao dịch
-    long trade_mode = SymbolInfoInteger(symbol, SYMBOL_TRADE_MODE);
-    if(trade_mode != SYMBOL_TRADE_MODE_FULL)
-        return false;
-    // Kiểm tra thời gian hiện tại
-    datetime current_time = TimeCurrent();
-    MqlDateTime mql_time;
-    TimeToStruct(current_time, mql_time);
-    // Kiểm tra các session giao dịch trong ngày
-    datetime session_start, session_end;
-    int session_index = 0;
-    
-    while(SymbolInfoSessionTrade(symbol, (ENUM_DAY_OF_WEEK)mql_time.day_of_week, session_index, session_start, session_end))
-    {
-        // Chuyển session time về cùng ngày với current_time
-        MqlDateTime start_struct, end_struct;
-        TimeToStruct(session_start, start_struct);
-        TimeToStruct(session_end, end_struct);
-        
-        start_struct.year = mql_time.year;
-        start_struct.mon = mql_time.mon;
-        start_struct.day = mql_time.day;
-        
-        end_struct.year = mql_time.year;
-        end_struct.mon = mql_time.mon;
-        end_struct.day = mql_time.day;
-        
-        datetime today_start = StructToTime(start_struct);
-        datetime today_end = StructToTime(end_struct);
-        
-        if(today_end < today_start)
-            today_end += 86400; // Thêm 1 ngày
-        
-        if(current_time >= today_start && current_time < today_end)
-            return true;
-        
-        session_index++;
-    }
-    return false;
+   datetime now = TimeTradeServer();   // lấy thời gian server của broker
+   MqlDateTime tm;
+   TimeToStruct(now, tm);
+
+   int dayOfWeek = tm.day_of_week;     // 0 = Chủ nhật, 1 = Thứ 2, ..., 6 = Thứ 7
+   int hour      = tm.hour;
+   int minute    = tm.min;
+   if(dayOfWeek == 0) return false;
+   if(dayOfWeek == 6 && hour >= 23 && minute >= 59) return false;  
+   if(dayOfWeek == 5 && hour >= 23 && minute >= 59) return false; 
+   if(hour == 23 && minute >= 59) return false;  
+   if(hour == 0  && minute < 5) return false;
+
+   return true;
 }
+
+
 
 // Trả về giờ Việt Nam (string dạng 24h HH:MM:SS)
 string GetTimeVN()
@@ -557,20 +701,7 @@ bool SendTelegramMessage(string text , bool disableNotification = false)
    }
 }
 
-string ReportAccount(double minPriceBuyAmParam , double hightPriceSellAmParam , double lowPriceSellDuongParam , double hightPriceBuyDuongParam)
-{
-   string accountInfo = "";
-   accountInfo += "===== 📊 ACCOUNT REPORT: "+AccountInfoInteger(ACCOUNT_LOGIN)+" "+AccountInfoString(ACCOUNT_NAME)+"=====\n" ;
-   accountInfo += "===== INFO DCA AM =====\n";
-   accountInfo += "minPriceBuyAmParam: "   + DoubleToString(minPriceBuyAmParam, 2) + "\n";
-   accountInfo += "hightPriceSellAmParam: "   + DoubleToString(hightPriceSellAmParam, 2) + "\n";
-   accountInfo += "===== INFO DCA DƯƠNG =====\n";
-   accountInfo += "lowPriceSellDuongParam: "   + DoubleToString(lowPriceSellDuongParam, 2) + "\n";
-   accountInfo += "hightPriceBuyDuongParam: "   + DoubleToString(hightPriceBuyDuongParam, 2) + "\n";
-   accountInfo += "Balance : "   + DoubleToString(AccountInfoDouble(ACCOUNT_BALANCE), 2) + "\n";
-   accountInfo += "Equity  : "   + DoubleToString(AccountInfoDouble(ACCOUNT_EQUITY), 2) + "\n";
-   return accountInfo;
-}
+
 
 void checkDrawDown()
 {
@@ -706,6 +837,36 @@ double CalculateRSI(int period ,  ENUM_TIMEFRAMES timeframe)
     double RS = gain / loss;
     double RSI = 100 - (100 / (1 + RS));
     return RSI;
+}
+
+double GetATRValue(int atr_period = 14, ENUM_TIMEFRAMES timeframe = PERIOD_CURRENT)
+{
+    // Tạo handle cho chỉ báo ATR
+    int atr_handle = iATR(_Symbol, timeframe, atr_period);
+    
+    // Kiểm tra handle có hợp lệ không
+    if(atr_handle == INVALID_HANDLE)
+    {
+        Print("Không thể tạo handle cho ATR. Lỗi: ", GetLastError());
+        return 0;
+    }
+    
+    // Khai báo mảng để lấy dữ liệu ATR
+    double atr_buffer[];
+    
+    // Sao chép dữ liệu ATR vào mảng
+    int copied = CopyBuffer(atr_handle, 0, 0, 1, atr_buffer);
+    
+    // Kiểm tra xem dữ liệu có được sao chép thành công không
+    if(copied <= 0)
+    {
+        Print("Không thể sao chép dữ liệu ATR. Lỗi: ", GetLastError());
+        return 0;
+    }
+    // Giải phóng handle
+    IndicatorRelease(atr_handle);
+    // Trả về giá trị ATR
+    return atr_buffer[0];
 }
 
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
