@@ -304,7 +304,7 @@ void OnTick()
        }
     }
     
-     if((TimeCurrent() - timelastedSendTelegram) >= 15)
+     if((TimeCurrent() - timelastedSendTelegram) > 5)
     {
           string acctionTelegram = CheckTelegramCaseWhenAction();
           if(acctionTelegram == "stop")
@@ -992,9 +992,9 @@ string CheckTelegramCaseWhenAction()
    
 
    // so với server time
-   if((nowEpoch- msgTime) > 30)
+   if((nowEpoch- msgTime) > 5)
    {
-      Print("⚠️ Tin nhắn cũ quá 30s -> bỏ qua");
+      Print("tin nhắn cũ quá 5s bỏ qua");
       return "";
    }
 
