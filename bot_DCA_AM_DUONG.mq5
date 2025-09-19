@@ -105,9 +105,32 @@ void OnTick()
         return;
     }
     checkDrawDown();
+   
+    if((TimeCurrent() - timelastedSendTelegram) >= 15)
+    {
+          string acctionTelegram = CheckTelegramCaseWhenAction();
+          if(acctionTelegram == "stop")
+          {
+            SendTelegramMessage("TÍN HIỆU TẮT BOT CỦA BẠN ĐÃ ĐƯỢC NHẬN");
+          }
+          if(acctionTelegram == "close_sell")
+          {
+            SendTelegramMessage("TÍN HIỆU CLOSE ALL LỆNH SELL ĐÃ ĐƯỢC NHẬN");
+            CloseAllSellPositions(magicNumberDuong);
+            CloseAllSellPositions(magicNumberAm);
+          }
+          if(acctionTelegram == "close_buy")
+          {
+            SendTelegramMessage("TÍN HIỆU CLOSE ALL LỆNH BUY ĐÃ ĐƯỢC NHẬN");
+            CloseAllBuyPositions(magicNumberDuong);
+            CloseAllBuyPositions(magicNumberAm);
+          }
+          timelastedSendTelegram = TimeCurrent();
+    }
+    
   
     // cập nhập giá
-     double rsi = CalculateRSI(14 ,  PERIOD_H1);
+    double rsi = CalculateRSI(14 ,  PERIOD_H1);
     if(isDcaFlowTrend){
       if(rsi< 30)
       {
@@ -209,11 +232,7 @@ void OnTick()
      }
      // DCA DƯƠNG
      ShowReport(minPriceBuyAm , hightPriceSellAm , lowPriceSellDuong , hightPriceBuyDuong);
-     if((TimeCurrent() - timelastedSendTelegram) >= 60*15)
-       {
-            timelastedSendTelegram = TimeCurrent();
-            
-       }
+    
      if(totalPositonBUY == 0 && totalPositonSELL == 0)
      {
         double avgPrice = MA_Custom(_Symbol ,PERIOD_M5 , 14);
@@ -868,6 +887,101 @@ double GetATRValue(int atr_period = 14, ENUM_TIMEFRAMES timeframe = PERIOD_CURRE
     // Trả về giá trị ATR
     return atr_buffer[0];
 }
+
+long lastUpdateId = 0;
+
+string CheckTelegramCaseWhenAction()
+{
+   string token  = "7542004417:AAF43NYwPUG3p9i3CWjXMV6j1C_qIrfZHhM";
+   string baseUrl = "https://api.telegram.org/bot" + token + "/";
+   string url = baseUrl + "getUpdates?offset=" + (string)(lastUpdateId+1);
+
+   string headers = "";
+   string content_type = "";
+   uchar post_data[];
+   uchar result[];
+   string result_headers;
+
+   int http_code = WebRequest("GET", url, headers, content_type, 5000, post_data, 0, result, result_headers);
+   if(http_code == -1)
+   {
+      Print("❌ WebRequest failed: ", GetLastError());
+      return "";
+   }
+
+   string response = CharArrayToString(result);
+   if(http_code != 200)
+   {
+      PrintFormat("❌ HTTP code=%d | response=%s", http_code, response);
+      return "";
+   }
+
+   int pos = StringFind(response, "\"update_id\":");
+   if(pos == -1) return "";
+
+   string sub = StringSubstr(response, pos+12, 20);
+   long newId = (long)StringToInteger(sub);
+   if(newId <= lastUpdateId) return "";
+   lastUpdateId = newId;
+
+   // --- lấy date ---
+   int posDate = StringFind(response, "\"date\":");
+   if(posDate == -1) return "";
+   string dateStr = StringSubstr(response, posDate+7, 10);
+   long msgTime = (long)StringToInteger(dateStr);
+   
+   datetime now = TimeCurrent();     // dạng datetime
+   long nowEpoch = (long)now;  
+   
+   Print("time current: " , nowEpoch );
+   Print("Time telegram: " , msgTime);
+   
+
+   // so với server time
+   if((nowEpoch- msgTime) > 30)
+   {
+      Print("⚠️ Tin nhắn cũ quá 30s -> bỏ qua");
+      return "";
+   }
+
+   // --- lấy chat_id ---
+   int chatPos = StringFind(response, "\"chat\":{\"id\":");
+   if(chatPos == -1) return "";
+
+   string chatSub = StringSubstr(response, chatPos+13, 20);
+   long chatIdLong = StringToInteger(chatSub);
+   string chatId = (string)chatIdLong;
+
+   if(chatId != t_code_telegram) 
+   {
+      Print("⚠️ Bỏ qua tin nhắn từ chat_id lạ: ", chatId);
+      return "";
+   }
+
+   if(StringFind(response, "\"text\":\"/stop\"") != -1 ||
+      StringFind(response, "\"text\":\"stop\"") != -1)
+   {
+      Print("📩 Nhận lệnh STOP từ chat_id hợp lệ");
+      return "stop";
+   }
+
+   if(StringFind(response, "\"text\":\"/close_sell\"") != -1 ||
+      StringFind(response, "\"text\":\"close_sell\"") != -1)
+   {
+      Print("📩 Nhận lệnh Close all SELL từ chat_id hợp lệ");
+      return "close_sell";
+   }
+   
+   if(StringFind(response, "\"text\":\"/close_buy\"") != -1 ||
+      StringFind(response, "\"text\":\"close_buy\"") != -1)
+   {
+      Print("📩 Nhận lệnh Close all BUY từ chat_id hợp lệ");
+      return "close_buy";
+   }
+   return "";
+}
+
+
 
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
 
