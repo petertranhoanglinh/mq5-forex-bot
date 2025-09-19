@@ -106,27 +106,7 @@ void OnTick()
     }
     checkDrawDown();
    
-    if((TimeCurrent() - timelastedSendTelegram) >= 15)
-    {
-          string acctionTelegram = CheckTelegramCaseWhenAction();
-          if(acctionTelegram == "stop")
-          {
-            SendTelegramMessage("TÍN HIỆU TẮT BOT CỦA BẠN ĐÃ ĐƯỢC NHẬN");
-          }
-          if(acctionTelegram == "close_sell")
-          {
-            SendTelegramMessage("TÍN HIỆU CLOSE ALL LỆNH SELL ĐÃ ĐƯỢC NHẬN");
-            CloseAllSellPositions(magicNumberDuong);
-            CloseAllSellPositions(magicNumberAm);
-          }
-          if(acctionTelegram == "close_buy")
-          {
-            SendTelegramMessage("TÍN HIỆU CLOSE ALL LỆNH BUY ĐÃ ĐƯỢC NHẬN");
-            CloseAllBuyPositions(magicNumberDuong);
-            CloseAllBuyPositions(magicNumberAm);
-          }
-          timelastedSendTelegram = TimeCurrent();
-    }
+   
     
   
     // cập nhập giá
@@ -322,6 +302,44 @@ void OnTick()
              calculator_Sl_Dca_Am();
            }
        }
+    }
+    
+     if((TimeCurrent() - timelastedSendTelegram) >= 15)
+    {
+          string acctionTelegram = CheckTelegramCaseWhenAction();
+          if(acctionTelegram == "stop")
+          {
+            SendTelegramMessage("TÍN HIỆU TẮT BOT CỦA BẠN ĐÃ ĐƯỢC NHẬN");
+          }
+          if(acctionTelegram == "close_sell")
+          {
+            SendTelegramMessage("TÍN HIỆU CLOSE ALL LỆNH SELL ĐÃ ĐƯỢC NHẬN");
+            CloseAllSellPositions(magicNumberDuong);
+            CloseAllSellPositions(magicNumberAm);
+          }
+          if(acctionTelegram == "close_buy")
+          {
+            SendTelegramMessage("TÍN HIỆU CLOSE ALL LỆNH BUY ĐÃ ĐƯỢC NHẬN");
+            CloseAllBuyPositions(magicNumberDuong);
+            CloseAllBuyPositions(magicNumberAm);
+          }
+          
+           if(acctionTelegram == "check_profit_sell")
+          {
+            SendTelegramMessage("Profit sell hiện tại là: " + checkProfit(POSITION_TYPE_SELL) );
+          }
+          
+           if(acctionTelegram == "check_profit_buy")
+          {
+            SendTelegramMessage("Profit buy hiện tại là: " +   checkProfit(POSITION_TYPE_BUY) );
+          }
+          
+           if(acctionTelegram == "check_profit")
+          {
+            SendTelegramMessage("total profit hiện tại là: " +   checkProfit(-999) );
+          }
+          timelastedSendTelegram = TimeCurrent();
+          
     }
    
 }
@@ -888,6 +906,42 @@ double GetATRValue(int atr_period = 14, ENUM_TIMEFRAMES timeframe = PERIOD_CURRE
     return atr_buffer[0];
 }
 
+double checkProfit(int typePosition)
+{
+   double totalProfitBuy = 0;
+   double totalProfitSell = 0;
+   double totalProfit = 0;
+   for(int i = 0 ; i <  PositionsTotal() ; i ++ ){
+         ulong ticket = PositionGetTicket(i);
+         int typePosition = PositionGetInteger(POSITION_TYPE);
+         int positionMagic = PositionGetInteger(POSITION_MAGIC);
+         double pricePosition = PositionGetDouble(POSITION_PRICE_OPEN);
+         double volumn = PositionGetDouble(POSITION_VOLUME);
+         string comment  = PositionGetString(POSITION_COMMENT);
+         datetime positionTime = (datetime)PositionGetInteger(POSITION_TIME);
+         double profit = PositionGetDouble(POSITION_PROFIT);
+        
+         if(typePosition == POSITION_TYPE_BUY){
+           
+            totalProfitBuy = totalProfitBuy + profit;
+            
+         }else {
+            
+            totalProfitSell = totalProfitSell + profit;
+         }
+         totalProfit = totalProfit + profit;
+     }
+     if(typePosition == POSITION_TYPE_BUY)
+     {
+      return totalProfitBuy;
+     }else if(typePosition == POSITION_TYPE_SELL)
+     {
+      return totalProfitSell;
+     }else{
+      return totalProfit;
+     }
+}
+
 long lastUpdateId = 0;
 
 string CheckTelegramCaseWhenAction()
@@ -977,6 +1031,26 @@ string CheckTelegramCaseWhenAction()
    {
       Print("📩 Nhận lệnh Close all BUY từ chat_id hợp lệ");
       return "close_buy";
+   }
+   
+   if(StringFind(response, "\"text\":\"/check_profit_buy\"") != -1 ||
+      StringFind(response, "\"text\":\"check_profit_buy\"") != -1)
+   {
+      Print("📩 Nhận lệnh check_profit_buy từ chat_id hợp lệ");
+      return "check_profit_buy";
+   }
+   
+   if(StringFind(response, "\"text\":\"/check_profit_sell\"") != -1 ||
+      StringFind(response, "\"text\":\"check_profit_sell\"") != -1)
+   {
+      Print("📩 Nhận lệnh check_profit_sell từ chat_id hợp lệ");
+      return "check_profit_sell";
+   }
+   if(StringFind(response, "\"text\":\"/check_profit\"") != -1 ||
+      StringFind(response, "\"text\":\"check_profit\"") != -1)
+   {
+      Print("📩 Nhận lệnh check_profit từ chat_id hợp lệ");
+      return "check_profit";
    }
    return "";
 }
