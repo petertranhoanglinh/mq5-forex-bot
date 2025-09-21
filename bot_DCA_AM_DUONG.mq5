@@ -48,9 +48,11 @@ input group "_Bật chức năng DCA dương theo trend";
 input bool isDcaFlowTrend = true; // bật tắt chức năng dca theo trend
 
 input group "_Option tia dca âm dương";
-input bool is_tia_dca_duong = false; // bật tắt chức năng dca dương
-input bool is_tia_dca_am = false; // bật tắt chức năng dca âm
-input double conditionPriceProfitTia = 1000; // điều kiện tỉa lệnh
+input bool is_tia_dca_duong = false; // bật tắt chức năng tỉa dca dương
+input bool is_tia_dca_am = false; // bật tắt chức năng tỉa dca âm
+input double conditionPriceProfitTia = 500; // điều kiện tỉa lệnh dca dương
+input ENUM_TIMEFRAMES timeFrames = PERIOD_H1;// Khoảng thời gian giới hạn order
+input double inputLimit = 60; // số lần giới hạn order
  
 // -------------------------
 // ⚙️ Cài đặt nâng cao khi bot gặp sự cố
@@ -305,40 +307,8 @@ void OnTick()
     }
     
      if((TimeCurrent() - timelastedSendTelegram) > 5)
-    {
-          string acctionTelegram = CheckTelegramCaseWhenAction();
-          if(acctionTelegram == "stop")
-          {
-            SendTelegramMessage("TÍN HIỆU TẮT BOT CỦA BẠN ĐÃ ĐƯỢC NHẬN");
-          }
-          if(acctionTelegram == "close_sell")
-          {
-            SendTelegramMessage("TÍN HIỆU CLOSE ALL LỆNH SELL ĐÃ ĐƯỢC NHẬN");
-            CloseAllSellPositions(magicNumberDuong);
-            CloseAllSellPositions(magicNumberAm);
-          }
-          if(acctionTelegram == "close_buy")
-          {
-            SendTelegramMessage("TÍN HIỆU CLOSE ALL LỆNH BUY ĐÃ ĐƯỢC NHẬN");
-            CloseAllBuyPositions(magicNumberDuong);
-            CloseAllBuyPositions(magicNumberAm);
-          }
-          
-           if(acctionTelegram == "check_profit_sell")
-          {
-            SendTelegramMessage("Profit sell: " + checkProfit(POSITION_TYPE_SELL) );
-          }
-          
-           if(acctionTelegram == "check_profit_buy")
-          {
-            SendTelegramMessage("Profit buy: " +   checkProfit(POSITION_TYPE_BUY) );
-          }
-          
-           if(acctionTelegram == "check_profit")
-          {
-            SendTelegramMessage("total profit: " +   checkProfit(-999) );
-          }
-          timelastedSendTelegram = TimeCurrent();
+     {
+        // update telegram before
           
     }
    
@@ -568,6 +538,11 @@ void calculator_Sl_Dca_Am(){
 
 bool openBuy(double volumn, double stoploss, double takeProfit, int magic , string comment)
 {
+   if(!checkOrderLimit(timeFrames , inputLimit))
+   {
+      Print("Limit Order Accept");
+      return true;
+   }
    double price = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
    double tp = (takeProfit == 0) ? 0 : price + takeProfit;
    double sl = (stoploss == 0) ? 0 : price - stoploss;
@@ -592,6 +567,11 @@ bool openBuy(double volumn, double stoploss, double takeProfit, int magic , stri
 
 bool openSell(double volumn, double stoploss, double takeProfit, int magic ,  string comment)
 {
+   if(!checkOrderLimit(timeFrames , inputLimit))
+   {
+      Print("Limit Order Accept");
+      return true;
+   }
    double price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    double tp = (takeProfit == 0) ? 0 : price - takeProfit;
    double sl = (stoploss == 0) ? 0 : price + stoploss;
@@ -1053,6 +1033,37 @@ string CheckTelegramCaseWhenAction()
       return "check_profit";
    }
    return "";
+}
+
+bool checkOrderLimit(ENUM_TIMEFRAMES timefram , int limit){
+   long static countLimit; 
+   datetime static timeCheckOrderLimit = TimeCurrent();
+   long timeLimit = 0;
+   if(timefram == PERIOD_M1)
+   {
+      timeLimit =  60;
+   }
+   
+   if(timefram == PERIOD_H1)
+   {
+      timeLimit =  60*60;
+   }
+   
+   if(timefram == PERIOD_D1)
+   {
+      timeLimit = 60*60*24;
+   }
+   if(TimeCurrent() - timeCheckOrderLimit > timeLimit){
+      timeCheckOrderLimit = TimeCurrent();
+      countLimit = 0;
+   }
+   
+   countLimit ++;
+   if(countLimit > inputLimit)
+   {
+      return false;
+   }
+   return true;  
 }
 
 
