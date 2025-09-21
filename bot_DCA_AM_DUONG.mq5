@@ -71,7 +71,8 @@ double countProfit = 0;
 bool flagBotActive = true;
 int trend = 0;
 
-
+long static countLimit; 
+datetime static timeCheckOrderLimit = TimeCurrent();
 
 datetime timelastedSendTelegram = 0;
 datetime time_check_sp_tp_dca_am = 0;
@@ -80,6 +81,8 @@ datetime time_check_sp_tp_dca_am = 0;
 //+------------------------------------------------------------------+
 int OnInit()
   {
+   countLimit = 0;
+   timeCheckOrderLimit = TimeCurrent();
    return(INIT_SUCCEEDED);
   }
 //+------------------------------------------------------------------+
@@ -1037,8 +1040,7 @@ string CheckTelegramCaseWhenAction()
 }
 
 bool checkOrderLimit(ENUM_TIMEFRAMES timefram , int limit){
-   long static countLimit; 
-   datetime static timeCheckOrderLimit = TimeCurrent();
+  
    long timeLimit = 0;
    if(timefram == PERIOD_M1)
    {
