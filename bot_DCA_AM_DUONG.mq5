@@ -53,6 +53,7 @@ input bool is_tia_dca_am = false; // bật tắt chức năng tỉa dca âm
 input double conditionPriceProfitTia = 500; // điều kiện tỉa lệnh dca dương
 input ENUM_TIMEFRAMES timeFrames = PERIOD_H1;// Khoảng thời gian giới hạn order
 input double inputLimit = 60; // số lần giới hạn order
+input bool istradinggood = true; // bạn đang áp dụng cho vàng
  
 // -------------------------
 // ⚙️ Cài đặt nâng cao khi bot gặp sự cố
@@ -101,7 +102,7 @@ void OnTick()
         return;
       }
     }
-     if(!isMarketOpen())
+     if(!isMarketOpen() && istradinggood)
     {
         Print("MARKET CLOSE BOT SHUTDOWN, " , GetTimeVN());
         return;
@@ -1069,4 +1070,5 @@ bool checkOrderLimit(ENUM_TIMEFRAMES timefram , int limit){
 
 
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
+
 
