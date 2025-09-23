@@ -284,12 +284,12 @@ void OnTick()
        }
 
         
-        if( (SymbolInfoDouble(_Symbol, SYMBOL_ASK) - high_buy_dca_duong_flow_trend > dcaPriceBuyDuong && trend == 1) || (trend == 1 && high_buy_dca_duong_flow_trend == 0) )  
+        if( (SymbolInfoDouble(_Symbol, SYMBOL_ASK) - high_buy_dca_duong_flow_trend > dcaPriceBuyDuong && trend == 1) || (halfTrend == 1 && high_buy_dca_duong_flow_trend == 0) )  
         {
            flagBotActive = openBuy(lotBuyDuong , artValue , artValue , magicNumberDuong , "TREND" );
         }
         
-         if( (low_sell_dca_duong_flow_trend - SymbolInfoDouble(_Symbol, SYMBOL_BID) > dcaPriceSellDuong && trend == -1) || (trend == -1 && low_sell_dca_duong_flow_trend == DBL_MAX) )
+         if( (low_sell_dca_duong_flow_trend - SymbolInfoDouble(_Symbol, SYMBOL_BID) > dcaPriceSellDuong && trend == -1) || (halfTrend == -1 && low_sell_dca_duong_flow_trend == DBL_MAX) )
         {
            flagBotActive = openSell(lotSellDuong , artValue , artValue , magicNumberDuong , "TREND" );
         }
