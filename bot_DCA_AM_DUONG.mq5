@@ -47,10 +47,10 @@ input group "_Bật chức năng DCA dương theo trend";
 input bool isDcaFlowTrend = true; // bật tắt chức năng dca theo trend
 
 input group "_Option tia dca âm dương";
-input bool is_tia_dca_duong = false; // bật tắt chức năng tỉa dca dương
-input bool is_tia_dca_am = false; // bật tắt chức năng tỉa dca âm
+input bool is_tia_dca_duong = true; // bật tắt chức năng tỉa dca dương
+input bool is_tia_dca_am = true; // bật tắt chức năng tỉa dca âm
 input double conditionPriceProfitTia = 500; // điều kiện tỉa lệnh dca dương
-input double profitLostPram = -100; // set lệnh nếu profit nhỏ hơn sẽ dời sl theo tín hiệu rsi
+input double profitLostPram = -50; // set lệnh nếu profit nhỏ hơn sẽ dời sl theo tín hiệu rsi
 
 input group "_Option chức năng giới hạn order limit";
 input ENUM_TIMEFRAMES timeFrames = PERIOD_H1;// Khoảng thời gian giới hạn order
@@ -71,8 +71,6 @@ int magicNumberAm = 54321;
 int magicNumberHedge = 02231;
 double countProfit = 0;
 bool flagBotActive = true;
-int trend = 0;
-
 long static countLimit; 
 datetime static timeCheckOrderLimit = TimeCurrent();
 
@@ -144,18 +142,19 @@ void OnTick()
     checkDrawDown();
     // cập nhập giá
     double rsi = CalculateRSI(14 ,  PERIOD_H1);
+    int type = 0;
     if(isDcaFlowTrend){
       if(rsi< 30 || halfTrend == 1)
       {
-         trend = 1;
+         type = 1;
       }
       if(rsi > 70 || halfTrend == -1 )
       {
-         trend = -1;
+         type = -1;
       }
       if(rsi > 30 && rsi < 70)
       {
-         trend = 0;
+         type = 0;
       }
     }
     double minPriceBuy = DBL_MAX;
@@ -284,12 +283,12 @@ void OnTick()
        }
 
         
-        if( (SymbolInfoDouble(_Symbol, SYMBOL_ASK) - high_buy_dca_duong_flow_trend > dcaPriceBuyDuong && trend == 1) || (halfTrend == 1 && high_buy_dca_duong_flow_trend == 0) )  
+        if( (SymbolInfoDouble(_Symbol, SYMBOL_ASK) - high_buy_dca_duong_flow_trend > dcaPriceBuyDuong && type == 1) || (halfTrend == 1 && high_buy_dca_duong_flow_trend == 0) )  
         {
            flagBotActive = openBuy(lotBuyDuong , artValue , artValue , magicNumberDuong , "TREND" );
         }
         
-         if( (low_sell_dca_duong_flow_trend - SymbolInfoDouble(_Symbol, SYMBOL_BID) > dcaPriceSellDuong && trend == -1) || (halfTrend == -1 && low_sell_dca_duong_flow_trend == DBL_MAX) )
+         if( (low_sell_dca_duong_flow_trend - SymbolInfoDouble(_Symbol, SYMBOL_BID) > dcaPriceSellDuong && type == -1) || (halfTrend == -1 && low_sell_dca_duong_flow_trend == DBL_MAX) )
         {
            flagBotActive = openSell(lotSellDuong , artValue , artValue , magicNumberDuong , "TREND" );
         }
@@ -411,17 +410,17 @@ void calculator_Sl_Dca_Duong(){
     }
     
    double rsi = CalculateRSI(14 ,  PERIOD_H1);
-   int trend = 0;
+   int type = 0;
    if(rsi< 30 || halfTrend == 1)
       {
-         trend = 1;
+         type = 1;
       }
       if(rsi > 70 || halfTrend == -1 )
       {
-         trend = -1;
+         type = -1;
    }
    
-   if(trend != 0)
+   if(type != 0)
    {
      for(int i = 0; i < ArraySize(arrLost); i++)
      {
@@ -445,12 +444,12 @@ void calculator_Sl_Dca_Duong(){
             double newTp = 0;
             double distanceIn1Price = volumn / 0.01 ;
             
-            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && trend == 1)
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && type == 1)
             {
                newSl = currentPrice + (new_sl_dca_duong / distanceIn1Price);
                newTp = currentPrice - (new_tp_dca_duong / distanceIn1Price);
             }
-            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && trend == -1)
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && type == -1)
             {
                newSl = currentPrice - (new_sl_dca_duong / distanceIn1Price);
                newTp = currentPrice + (new_tp_dca_duong / distanceIn1Price);
@@ -523,13 +522,13 @@ void calculator_Sl_Dca_Am(){
             double newSl = 0;
             double newTp = 0;
             double distanceIn1Price = volumn / 0.01 ;
-            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && trend == 1)
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && type == 1)
             {
                newSl = currentPrice + (new_sl_dca_am / distanceIn1Price);
                newTp = currentPrice - (new_sl_dca_am / distanceIn1Price);
             }
             
-            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && trend == -1){
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && type == -1){
                newSl = currentPrice - (new_sl_dca_am / distanceIn1Price);
                newTp = currentPrice + (new_sl_dca_am / distanceIn1Price);
             }
