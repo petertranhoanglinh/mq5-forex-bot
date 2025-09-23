@@ -90,12 +90,17 @@ int halfTrend = 0;
 //+------------------------------------------------------------------+
 int OnInit()
   {
-    halfTrendHandle = iCustom(_Symbol, _Period, 
-                             "SuperTrend",  
+   halfTrendHandle = iCustom(_Symbol, _Period, 
+                             "HalfTrend",  
                              InpAmplitude,
                              InpCodeUpArrow,
                              InpCodeDnArrow,
                              InpShift);
+   if(halfTrendHandle == INVALID_HANDLE)
+   {
+      Print("❌ Không load được Half Trend New. Lỗi: ", GetLastError());
+      return(INIT_FAILED);
+   }
    countLimit = 0;
    timeCheckOrderLimit = TimeCurrent();
    return(INIT_SUCCEEDED);
@@ -1124,4 +1129,5 @@ int GetHalfTrendSignal(datetime &signalTime, double &signalPrice)
 
 
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
+
 
