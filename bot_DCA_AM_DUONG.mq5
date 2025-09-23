@@ -296,19 +296,18 @@ void OnTick()
      
      double balance = AccountInfoDouble(ACCOUNT_BALANCE);
      double equility = AccountInfoDouble(ACCOUNT_EQUITY);
-     
-    if(balance - equility >  conditionPriceProfitTia){
-       if(is_tia_dca_duong){
-         calculator_Sl_Dca_Duong();
+       if(balance - equility >  conditionPriceProfitTia){
+          if(is_tia_dca_duong){
+            calculator_Sl_Dca_Duong();
+          }
+          if((TimeCurrent() - time_check_sp_tp_dca_am) >= 60*5)
+          {
+              time_check_sp_tp_dca_am = TimeCurrent();
+              if(is_tia_dca_am){
+                calculator_Sl_Dca_Am();
+              }
+          }
        }
-       if((TimeCurrent() - time_check_sp_tp_dca_am) >= 60*5)
-       {
-           time_check_sp_tp_dca_am = TimeCurrent();
-           if(is_tia_dca_am){
-             calculator_Sl_Dca_Am();
-           }
-       }
-    }
     
      if((TimeCurrent() - timelastedSendTelegram) > 5)
      {
@@ -339,21 +338,19 @@ void calculator_Sl_Dca_Duong(){
                {
                   AddToArray(arrWin, ticket);
                }
-               if(profit < profitLostPram){
+               if(profit < 0){
                  AddToArray(arrLost, ticket);
                }
             }
            
         }
     }
-    // 
     if(profit > tp_sl_dca_duong)
     {
        // update sl
        for(int i = 0; i < ArraySize(arrWin); i++)
        {
          ulong ticket = arrWin[i];
-         Print("TICKET CẦN SL LÀ: ", ticket);
          double currentPrice;
          if(positonType == POSITION_TYPE_BUY)
              currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
@@ -361,10 +358,12 @@ void calculator_Sl_Dca_Duong(){
              currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
          if(PositionSelectByTicket(ticket)){
             double profit = PositionGetDouble(POSITION_PROFIT);
+            
             double volumn =  PositionGetDouble(POSITION_VOLUME);
             double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
             double sl = PositionGetDouble(POSITION_SL);
             double newSl = 0;
+            
             
             if(positonType == POSITION_TYPE_BUY)
             {
@@ -372,7 +371,12 @@ void calculator_Sl_Dca_Duong(){
             }else{
                newSl = openPrice  - ((openPrice - currentPrice) / 2);
             }
-             if(sl == 0)
+            
+            Print("TICKET CẦN TP LÀ: ", ticket );
+            Print("SL : ", newSl);
+            Print("TYPE : ", PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL ? "SELL" : "BUY");
+            
+             if(sl == 0 &&  newSl != 0)
             {
               ModifyPositionByTicket(ticket , newSl , 0);
             }
@@ -384,11 +388,11 @@ void calculator_Sl_Dca_Duong(){
     
    double rsi = CalculateRSI(14 ,  PERIOD_H1);
    int trend = 0;
-   if(rsi< 30)
+   if(rsi< 35)
    {
       trend = 1;
    }
-   if(rsi > 70)
+   if(rsi > 65)
    {
       trend = -1;
    }
@@ -398,7 +402,8 @@ void calculator_Sl_Dca_Duong(){
      for(int i = 0; i < ArraySize(arrLost); i++)
      {
          ulong ticket = arrLost[i];
-         Print("TICKET CẦN SL LÀ: ", ticket);
+        
+        
          double currentPrice;
          if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
              currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
@@ -406,6 +411,11 @@ void calculator_Sl_Dca_Duong(){
              currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
          if(PositionSelectByTicket(ticket)){
             double profit = PositionGetDouble(POSITION_PROFIT);
+           
+            if(profit > profitLostPram)
+            {
+               continue;
+            }
             double volumn =  PositionGetDouble(POSITION_VOLUME);
             double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
             double sl = PositionGetDouble(POSITION_SL);
@@ -422,8 +432,13 @@ void calculator_Sl_Dca_Duong(){
             {
                newSl = currentPrice - (new_sl_dca_duong / distanceIn1Price);
                newTp = currentPrice + (new_tp_dca_duong / distanceIn1Price);
+            
             }
-            if(sl == 0)
+            Print("TP: ", newTp);
+            Print("SL : ", newSl);
+            Print("CR : ", currentPrice);
+            Print("TYPE : ", PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL ? "SELL" : "BUY");
+            if(sl == 0 && newSl !=0 && newTp != 0)
             {
               ModifyPositionByTicket(ticket , newSl , newTp);
             }
@@ -445,7 +460,7 @@ void calculator_Sl_Dca_Am(){
         {
             if(PositionGetInteger(POSITION_MAGIC) == magicNumberAm){        
                profit = profit + profitPostion;
-               if(profit < profitLostPram)
+               if(profit < 0)
                {
                   AddToArray(arrLost, ticket);
                }
@@ -455,10 +470,10 @@ void calculator_Sl_Dca_Am(){
     double rsi = CalculateRSI(14 ,  PERIOD_H1);
     int type = 0;
     
-    if(rsi < 30){
+    if(rsi < 35){
       type = 1; // giá có xu hướng tăng
     }
-    if(rsi > 70)
+    if(rsi > 65)
     {
      type = -1; // giá có xu hướng giảm
     }
@@ -468,7 +483,7 @@ void calculator_Sl_Dca_Am(){
        for(int i = 0; i < ArraySize(arrLost); i++)
        {
          ulong ticket = arrLost[i];
-         Print("TICKET CẦN SL LÀ: ", ticket);
+        
          double currentPrice;
          if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
              currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
@@ -476,6 +491,11 @@ void calculator_Sl_Dca_Am(){
              currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
          if(PositionSelectByTicket(ticket)){
             double profit = PositionGetDouble(POSITION_PROFIT);
+            if(profit > profitLostPram)
+            {
+               continue;
+            }
+          
             double volumn =  PositionGetDouble(POSITION_VOLUME);
             double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
             double sl = PositionGetDouble(POSITION_SL);
@@ -487,7 +507,12 @@ void calculator_Sl_Dca_Am(){
                newSl = currentPrice + (new_sl_dca_duong / distanceIn1Price);
                newTp = currentPrice - (new_sl_dca_duong / distanceIn1Price);
             }
-            if(sl == 0)
+            Print("TICKET CẦN SL LÀ: ", ticket);
+            Print("TP: ", newTp);
+            Print("SL : ", newSl);
+            Print("CR : ", currentPrice);
+            Print("TYPE : ", PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL ? "SELL" : "BUY");
+            if(sl == 0 && newSl != 0 && newTp != 0)
             {
               ModifyPositionByTicket(ticket , newSl , newTp);
             }
@@ -502,7 +527,6 @@ void calculator_Sl_Dca_Am(){
        for(int i = 0; i < ArraySize(arrLost); i++)
        {
          ulong ticket = arrLost[i];
-         Print("TICKET CẦN SL LÀ: ", ticket);
          double currentPrice;
          if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
              currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
@@ -521,7 +545,12 @@ void calculator_Sl_Dca_Am(){
                newSl = currentPrice - (new_sl_dca_am / distanceIn1Price);
                newTp = currentPrice + (new_tp_dca_am / distanceIn1Price);
             }
-            if(sl == 0)
+            Print("TICKET CẦN SL LÀ: ", ticket);
+            Print("TP: ", newTp);
+            Print("SL : ", newSl);
+            Print("CR : ", currentPrice);
+            Print("TYPE : ", PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL ? "SELL" : "BUY");
+           if(sl == 0 && newSl != 0 && newTp != 0)
             {
               ModifyPositionByTicket(ticket , newSl , newTp);
             }
