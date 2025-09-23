@@ -40,8 +40,8 @@ input double new_tp_dca_duong = 30; // dời sl tp khi đổi trend
 input double new_sl_dca_duong = 30; // dời sl tp khi đổi trend
 
 input group "_Dời SL_TP DCA ÂM NÂNG CAO"; 
-input double new_tp_dca_am = 30;
-input double new_sl_dca_am = 30;
+input double new_tp_dca_am = 15;
+input double new_sl_dca_am = 15;
 
 input group "_Bật chức năng DCA dương theo trend";
 input bool isDcaFlowTrend = true; // bật tắt chức năng dca theo trend
@@ -420,6 +420,7 @@ void calculator_Sl_Dca_Duong(){
          type = -1;
    }
    
+   // cắt lô
    if(type != 0)
    {
      for(int i = 0; i < ArraySize(arrLost); i++)
