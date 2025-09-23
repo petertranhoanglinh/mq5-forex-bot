@@ -40,7 +40,6 @@ input double new_tp_dca_duong = 30; // dời sl tp khi đổi trend
 input double new_sl_dca_duong = 30; // dời sl tp khi đổi trend
 
 input group "_Dời SL_TP DCA ÂM NÂNG CAO"; 
-input double profitLostPram = -100; // set lệnh nếu profit nhỏ hơn sẽ dời sl theo tín hiệu rsi
 input double new_tp_dca_am = 30;
 input double new_sl_dca_am = 30;
 
@@ -51,6 +50,9 @@ input group "_Option tia dca âm dương";
 input bool is_tia_dca_duong = false; // bật tắt chức năng tỉa dca dương
 input bool is_tia_dca_am = false; // bật tắt chức năng tỉa dca âm
 input double conditionPriceProfitTia = 500; // điều kiện tỉa lệnh dca dương
+input double profitLostPram = -100; // set lệnh nếu profit nhỏ hơn sẽ dời sl theo tín hiệu rsi
+
+input group "_Option chức năng giới hạn order limit";
 input ENUM_TIMEFRAMES timeFrames = PERIOD_H1;// Khoảng thời gian giới hạn order
 input double inputLimit = 60; // số lần giới hạn order
 input bool istradinggood = true; // bạn đang áp dụng cho vàng
@@ -76,11 +78,24 @@ datetime static timeCheckOrderLimit = TimeCurrent();
 
 datetime timelastedSendTelegram = 0;
 datetime time_check_sp_tp_dca_am = 0;
+
+int halfTrendHandle;
+int    InpAmplitude   = 5;     // Amplitude
+uchar  InpCodeUpArrow = 233;   // Arrow code for 'UpArrow' (Wingdings)
+uchar  InpCodeDnArrow = 234;   // Arrow code for 'DnArrow' (Wingdings)
+int    InpShift       = 10;    // Vertical shift of arrows
+int halfTrend = 0;
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
   {
+    halfTrendHandle = iCustom(_Symbol, _Period, 
+                             "SuperTrend",  
+                             InpAmplitude,
+                             InpCodeUpArrow,
+                             InpCodeDnArrow,
+                             InpShift);
    countLimit = 0;
    timeCheckOrderLimit = TimeCurrent();
    return(INIT_SUCCEEDED);
@@ -96,7 +111,6 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
-    
     if(!flagBotActive)
     {
       SendTelegramMessage("BOT FAIL FOR ACCOUNT: "+AccountInfoInteger(ACCOUNT_LOGIN)+" "+AccountInfoString(ACCOUNT_NAME)+GetTimeVN() , true);
@@ -110,19 +124,27 @@ void OnTick()
         Print("MARKET CLOSE BOT SHUTDOWN, " , GetTimeVN());
         return;
     }
+    datetime signalTime;// đánh giấu thới gian ghi nhận có tín hiệu 
+    double signalPrice;
+    static datetime lastSignalTime = 0;
+        
+    int signal = GetHalfTrendSignal(signalTime, signalPrice);
+    if(signal != 0 && signalTime > lastSignalTime)
+    {
+      lastSignalTime = signalTime;
+      halfTrend = signal;
+    }else{
+      halfTrend = 0;
+    }
     checkDrawDown();
-   
-   
-    
-  
     // cập nhập giá
     double rsi = CalculateRSI(14 ,  PERIOD_H1);
     if(isDcaFlowTrend){
-      if(rsi< 30)
+      if(rsi< 30 || halfTrend == 1)
       {
          trend = 1;
       }
-      if(rsi > 70)
+      if(rsi > 70 || halfTrend == -1 )
       {
          trend = -1;
       }
@@ -363,15 +385,12 @@ void calculator_Sl_Dca_Duong(){
             double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
             double sl = PositionGetDouble(POSITION_SL);
             double newSl = 0;
-            
-            
             if(positonType == POSITION_TYPE_BUY)
             {
                newSl = openPrice  +  ((currentPrice - openPrice) / 2);
             }else{
                newSl = openPrice  - ((openPrice - currentPrice) / 2);
             }
-            
             Print("TICKET CẦN TP LÀ: ", ticket );
             Print("SL : ", newSl);
             Print("TYPE : ", PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL ? "SELL" : "BUY");
@@ -388,13 +407,13 @@ void calculator_Sl_Dca_Duong(){
     
    double rsi = CalculateRSI(14 ,  PERIOD_H1);
    int trend = 0;
-   if(rsi< 35)
-   {
-      trend = 1;
-   }
-   if(rsi > 65)
-   {
-      trend = -1;
+   if(rsi< 30 || halfTrend == 1)
+      {
+         trend = 1;
+      }
+      if(rsi > 70 || halfTrend == -1 )
+      {
+         trend = -1;
    }
    
    if(trend != 0)
@@ -402,8 +421,6 @@ void calculator_Sl_Dca_Duong(){
      for(int i = 0; i < ArraySize(arrLost); i++)
      {
          ulong ticket = arrLost[i];
-        
-        
          double currentPrice;
          if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
              currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
@@ -470,15 +487,15 @@ void calculator_Sl_Dca_Am(){
     double rsi = CalculateRSI(14 ,  PERIOD_H1);
     int type = 0;
     
-    if(rsi < 35){
-      type = 1; // giá có xu hướng tăng
-    }
-    if(rsi > 65)
+    if(rsi< 30 || halfTrend == 1)
     {
-     type = -1; // giá có xu hướng giảm
+      type = 1;
     }
-    
-    if(type == 1) // giá tăng dời sl cho lệnh sell thôi
+    if(rsi > 70 || halfTrend == -1 )
+    {
+      type = -1;
+    }
+    if(type != 0) // giá tăng dời sl cho lệnh sell thôi
     {
        for(int i = 0; i < ArraySize(arrLost); i++)
        {
@@ -495,17 +512,21 @@ void calculator_Sl_Dca_Am(){
             {
                continue;
             }
-          
             double volumn =  PositionGetDouble(POSITION_VOLUME);
             double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
             double sl = PositionGetDouble(POSITION_SL);
             double newSl = 0;
             double newTp = 0;
             double distanceIn1Price = volumn / 0.01 ;
-            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && trend == 1)
             {
-               newSl = currentPrice + (new_sl_dca_duong / distanceIn1Price);
-               newTp = currentPrice - (new_sl_dca_duong / distanceIn1Price);
+               newSl = currentPrice + (new_sl_dca_am / distanceIn1Price);
+               newTp = currentPrice - (new_sl_dca_am / distanceIn1Price);
+            }
+            
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && trend == -1){
+               newSl = currentPrice - (new_sl_dca_am / distanceIn1Price);
+               newTp = currentPrice + (new_sl_dca_am / distanceIn1Price);
             }
             Print("TICKET CẦN SL LÀ: ", ticket);
             Print("TP: ", newTp);
@@ -522,46 +543,6 @@ void calculator_Sl_Dca_Am(){
        }
     }
     
-     if(type == -1) // giá giảm  dời sl cho lệnh buy thôi
-    {
-       for(int i = 0; i < ArraySize(arrLost); i++)
-       {
-         ulong ticket = arrLost[i];
-         double currentPrice;
-         if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
-             currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-         else
-             currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-         if(PositionSelectByTicket(ticket)){
-            double profit = PositionGetDouble(POSITION_PROFIT);
-            double volumn =  PositionGetDouble(POSITION_VOLUME);
-            double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
-            double sl = PositionGetDouble(POSITION_SL);
-            double newSl = 0;
-            double newTp = 0;
-            double distanceIn1Price = volumn / 0.01 ;
-            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
-            {
-               newSl = currentPrice - (new_sl_dca_am / distanceIn1Price);
-               newTp = currentPrice + (new_tp_dca_am / distanceIn1Price);
-            }
-            Print("TICKET CẦN SL LÀ: ", ticket);
-            Print("TP: ", newTp);
-            Print("SL : ", newSl);
-            Print("CR : ", currentPrice);
-            Print("TYPE : ", PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL ? "SELL" : "BUY");
-           if(sl == 0 && newSl != 0 && newTp != 0)
-            {
-              ModifyPositionByTicket(ticket , newSl , newTp);
-            }
-           
-         }
-         
-       }
-    }
-    
-    
-     
     
 }
 // --------------------------------------------------end logic bot function----------------------------------------------------------------------------------------------------------------
@@ -1098,8 +1079,49 @@ bool checkOrderLimit(ENUM_TIMEFRAMES timefram , int limit){
    return true;  
 }
 
+//+------------------------------------------------------------------+
+//| Lấy tín hiệu Half Trend với thời gian chính xác                  |
+//+------------------------------------------------------------------+
+int GetHalfTrendSignal(datetime &signalTime, double &signalPrice)
+{
+   signalTime = 0;
+   signalPrice = 0.0;
+   if(halfTrendHandle == INVALID_HANDLE) 
+      return 0;
+
+   double upArrow[], downArrow[];
+   datetime time[];
+   ArraySetAsSeries(upArrow, true);
+   ArraySetAsSeries(downArrow, true);
+   ArraySetAsSeries(time, true);
+
+   //--- Lấy dữ liệu mũi tên Buy (buffer 2), Sell (buffer 3) và thời gian
+   if(CopyBuffer(halfTrendHandle, 2, 0, 3, upArrow) < 0 ||
+      CopyBuffer(halfTrendHandle, 3, 0, 3, downArrow) < 0 ||
+      CopyTime(Symbol(), Period(), 0, 3, time) < 0)
+   {
+      Print("Lỗi CopyBuffer/CopyTime: ", GetLastError());
+      return 0;
+   }
+
+   //--- Kiểm tra tín hiệu ở nến trước (index 1)
+   if(upArrow[1] != 0.0 && upArrow[1] != EMPTY_VALUE)
+   {
+      signalTime = time[1];
+      signalPrice = upArrow[1];
+      return 1; // UPTREND
+   }
+   else if(downArrow[1] != 0.0 && downArrow[1] != EMPTY_VALUE)
+   {
+      signalTime = time[1];
+      signalPrice = downArrow[1];
+      return -1; // DOWNTREND
+   }
+
+   return 0; 
+}
+
 
 
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
-
 
