@@ -26,12 +26,16 @@ input double lotBuyDuong = 0.03; // Số lot vào lệnh
 input double dcaPriceBuyDuong = 1; // khoảng giá DCA BUY DƯƠNG
 input double tpBuyDcaDuong  = 0;
 input bool  isDcaBuyDuong = true; // BẬT/ TẮT
+input int input_max_dca_buy_duong = 20; // max lệnh dca dương
 
 input group "__Set Các chức năng liên quan tới SELL DCA DƯƠNG"; 
 input double lotSellDuong = 0.03; // Số lot vào lệnh 
 input double dcaPriceSellDuong = 1;// khoảng giá DCA SELL DƯƠNG
 input double tpSellDcaDuong  = 0;
 input bool  isDcaSellDuong = true; // BẬT/ TẮT
+input int input_max_dca_sell_duong = 20; // max lệnh dca dương
+
+
 
 input group "_Dời SL TP DCA DƯƠNG NÂNG CAO"; 
 input double tp_sl_dca_duong = 50; // lợi nhuận nếu tổng DCA dương đạt tới sẽ dời SL
@@ -127,7 +131,7 @@ void OnTick()
         return;
       }
     }
-    bool flagDisableDcaDuong = false;
+    
      if(!isMarketOpen() && istradinggood)
     {
         
@@ -135,8 +139,8 @@ void OnTick()
         return;
     }
     resetBot();
-    
-    if(isSideway(_Period)){
+    bool flagDisableDcaDuong = false;
+    if(isSideway(PERIOD_M15)){
       Print("THỊ TRƯỜNG SIDE WAY");
       flagDisableDcaDuong = true;
     }
@@ -276,7 +280,7 @@ void OnTick()
         
      }else{
          
-         if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong && halfTrend != -1 && flagDisableDcaDuong == false)
+         if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong && halfTrend != -1 && flagDisableDcaDuong == false && totalPositonBUY < input_max_dca_buy_duong)
          {
               double volum = lotBuyDuong ;
               if(halfTrend == 1){
@@ -284,7 +288,7 @@ void OnTick()
               }
              flagBotActive = openBuy(volum , 0 , 0 , magicNumberDuong , "BUY +| "  + IntegerToString(totalPositonBUY) + " AT: " + GetTimeVN());   
          }
-         if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong && halfTrend != 1 && flagDisableDcaDuong == false){
+         if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong && halfTrend != 1 && flagDisableDcaDuong == false && totalPositonSELL < input_max_dca_sell_duong){
               double volum = lotSellDuong ;
               if(halfTrend == -1){
                 volum = lotSellDuong  * 3;
@@ -380,20 +384,30 @@ void calculator_Sl_Dca_Duong(){
    double percent_tia_lenh = 0.2;
    bool haveSLBuy = false;
    bool haveSLSell = false;
+   int totalBuy = 0;
+   int totalSell = 0;
    
    
    for(int i = 0 ; i < PositionsTotal() ; i++)
     {
         ulong ticket = PositionGetTicket(i);
         double profitPostion = PositionGetDouble(POSITION_PROFIT);
+        
         double sl = PositionGetDouble(POSITION_SL);
         if(ticket > 0 && PositionSelectByTicket(ticket))
         {
             if(PositionGetInteger(POSITION_MAGIC) == magicNumberDuong && PositionGetString(POSITION_COMMENT) != "TREND"){        
                profit = profit + profitPostion;
+               if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY){
+                  totalBuy ++ ;
+               }else
+               {
+                  totalSell ++ ;
+               }
                if(profitPostion > 0)
                {
                   AddToArray(arrWin, ticket);
+                 
                }
                if(profitPostion < profitLostPram){
                  AddToArray(arrLost, ticket);
@@ -450,13 +464,33 @@ void calculator_Sl_Dca_Duong(){
     
    double rsi = CalculateRSI(14 ,  PERIOD_H1);
    int type = 0;
-   if(rsi< 30 || halfTrend == 1)
+   if(rsi< 30 || halfTrend == 1 )
       {
          type = 1;
       }
       if(rsi > 70 || halfTrend == -1 )
       {
          type = -1;
+   }
+   if(isSideway(PERIOD_M15))
+   {
+      if(rsi < 50)
+      {
+         type = 1;
+      }
+      
+      if(rsi > 50)
+      {
+         type = -1;
+      }
+      
+   }
+   if(totalBuy  == input_max_dca_buy_duong && haveSLBuy  == false){
+      type = 1;
+   }
+   
+   if(totalSell  == input_max_dca_sell_duong && haveSLSell  == false){
+      type = -1;
    }
    
    // cắt lô
@@ -474,11 +508,6 @@ void calculator_Sl_Dca_Duong(){
              currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
          if(PositionSelectByTicket(ticket)){
             double profit = PositionGetDouble(POSITION_PROFIT);
-           
-            //if(profit > profitLostPram)
-            //{
-            //   continue;
-            //}
             double volumn =  PositionGetDouble(POSITION_VOLUME);
             double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
             double sl = PositionGetDouble(POSITION_SL);
@@ -555,6 +584,20 @@ void calculator_Sl_Dca_Am(){
     {
       type = -1;
     }
+    
+    if(isSideway(PERIOD_M15) && type == 0)
+   {
+      if(rsi < 50)
+      {
+         type = 1;
+      }
+      
+      if(rsi > 50)
+      {
+         type = -1;
+      }
+      
+   }
     if(type != 0) // giá tăng dời sl cho lệnh sell thôi
     {
        for(int i = 0; i < ArraySize(arrLost); i++)
