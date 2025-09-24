@@ -349,28 +349,41 @@ void OnTick()
 void calculator_Sl_Dca_Duong(){
    ulong arrWin[];
    ulong arrLost[];
-   int positonType  ;
    double profit = 0;
-   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   double percent_tia_lenh = 0.2;
+   bool haveSLBuy = false;
+   bool haveSLSell = false;
+   
+   
+   for(int i = 0 ; i < PositionsTotal() ; i++)
     {
         ulong ticket = PositionGetTicket(i);
         double profitPostion = PositionGetDouble(POSITION_PROFIT);
+        double sl = PositionGetDouble(POSITION_SL);
         if(ticket > 0 && PositionSelectByTicket(ticket))
         {
-            if(PositionGetInteger(POSITION_MAGIC) == magicNumberDuong){        
+            if(PositionGetInteger(POSITION_MAGIC) == magicNumberDuong && PositionGetString(POSITION_COMMENT) != "TREND"){        
                profit = profit + profitPostion;
-               positonType = PositionGetInteger(POSITION_TYPE);
-               if(profit > 0)
+               if(profitPostion > 0)
                {
                   AddToArray(arrWin, ticket);
                }
-               if(profit < 0){
+               if(profitPostion < profitLostPram){
                  AddToArray(arrLost, ticket);
+                 if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && sl != 0)
+                 {
+                  haveSLBuy = true;
+                 }
+                 if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && sl != 0){
+                  haveSLSell = true;
+                 }
+                 
                }
             }
            
         }
     }
+   
     if(profit > tp_sl_dca_duong)
     {
        // update sl
@@ -378,7 +391,7 @@ void calculator_Sl_Dca_Duong(){
        {
          ulong ticket = arrWin[i];
          double currentPrice;
-         if(positonType == POSITION_TYPE_BUY)
+         if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
              currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
          else
              currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
@@ -389,7 +402,7 @@ void calculator_Sl_Dca_Duong(){
             double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
             double sl = PositionGetDouble(POSITION_SL);
             double newSl = 0;
-            if(positonType == POSITION_TYPE_BUY)
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
             {
                newSl = openPrice  +  ((currentPrice - openPrice) / 2);
             }else{
@@ -398,8 +411,7 @@ void calculator_Sl_Dca_Duong(){
             Print("TICKET CẦN TP LÀ: ", ticket );
             Print("SL : ", newSl);
             Print("TYPE : ", PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL ? "SELL" : "BUY");
-            
-             if(sl == 0 &&  newSl != 0)
+            if(sl == 0 &&  newSl != 0)
             {
               ModifyPositionByTicket(ticket , newSl , 0);
             }
@@ -421,6 +433,8 @@ void calculator_Sl_Dca_Duong(){
    }
    
    // cắt lô
+   int limitLenhTia =  int(arrLost.Size() * percent_tia_lenh); 
+   int countTiaLenh = 0;
    if(type != 0)
    {
      for(int i = 0; i < ArraySize(arrLost); i++)
@@ -434,23 +448,23 @@ void calculator_Sl_Dca_Duong(){
          if(PositionSelectByTicket(ticket)){
             double profit = PositionGetDouble(POSITION_PROFIT);
            
-            if(profit > profitLostPram)
-            {
-               continue;
-            }
+            //if(profit > profitLostPram)
+            //{
+            //   continue;
+            //}
             double volumn =  PositionGetDouble(POSITION_VOLUME);
             double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
             double sl = PositionGetDouble(POSITION_SL);
             double newSl = 0;
             double newTp = 0;
             double distanceIn1Price = volumn / 0.01 ;
-            
-            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && type == 1)
+           
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && type == 1 && haveSLSell == false)
             {
                newSl = currentPrice + (new_sl_dca_duong / distanceIn1Price);
                newTp = currentPrice - (new_tp_dca_duong / distanceIn1Price);
             }
-            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && type == -1)
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && type == -1 && haveSLBuy == false)
             {
                newSl = currentPrice - (new_sl_dca_duong / distanceIn1Price);
                newTp = currentPrice + (new_tp_dca_duong / distanceIn1Price);
@@ -460,9 +474,10 @@ void calculator_Sl_Dca_Duong(){
             Print("SL : ", newSl);
             Print("CR : ", currentPrice);
             Print("TYPE : ", PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL ? "SELL" : "BUY");
-            if(sl == 0 && newSl !=0 && newTp != 0)
+            if(sl == 0 && newSl !=0 && newTp != 0 && countTiaLenh < limitLenhTia)
             {
               ModifyPositionByTicket(ticket , newSl , newTp);
+              countTiaLenh ++ ;
             }
             
          }
@@ -474,23 +489,36 @@ void calculator_Sl_Dca_Duong(){
 void calculator_Sl_Dca_Am(){
    ulong arrLost[];
    double profit = 0;
-   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   double percent_tia_lenh = 0.2;
+   bool haveSLBuy = false;
+   bool haveSLSell = false;
+   for(int i = 0 ; i < PositionsTotal() ; i++)
    {
         ulong ticket = PositionGetTicket(i);
         double profitPostion = PositionGetDouble(POSITION_PROFIT);
+        double sl = PositionGetDouble(POSITION_SL);
         if(ticket > 0 && PositionSelectByTicket(ticket))
         {
             if(PositionGetInteger(POSITION_MAGIC) == magicNumberAm){        
                profit = profit + profitPostion;
-               if(profit < 0)
+               if(profitPostion < profitLostPram)
                {
-                  AddToArray(arrLost, ticket);
+                 AddToArray(arrLost, ticket);
+                 if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && sl != 0)
+                 {
+                  haveSLBuy = true;
+                 }
+                 if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && sl != 0){
+                  haveSLSell = true;
+                 }
                }
             }
         }
     }
     double rsi = CalculateRSI(14 ,  PERIOD_H1);
     int type = 0;
+    int limitLenhTia =  int(arrLost.Size() * percent_tia_lenh); 
+    int countTiaLenh = 0;
     
     if(rsi< 30 || halfTrend == 1)
     {
@@ -513,23 +541,19 @@ void calculator_Sl_Dca_Am(){
              currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
          if(PositionSelectByTicket(ticket)){
             double profit = PositionGetDouble(POSITION_PROFIT);
-            if(profit > profitLostPram)
-            {
-               continue;
-            }
             double volumn =  PositionGetDouble(POSITION_VOLUME);
             double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
             double sl = PositionGetDouble(POSITION_SL);
             double newSl = 0;
             double newTp = 0;
             double distanceIn1Price = volumn / 0.01 ;
-            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && type == 1)
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL && type == 1 && haveSLSell ==  false)
             {
                newSl = currentPrice + (new_sl_dca_am / distanceIn1Price);
                newTp = currentPrice - (new_sl_dca_am / distanceIn1Price);
             }
             
-            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && type == -1){
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY && type == -1 && haveSLBuy == false){
                newSl = currentPrice - (new_sl_dca_am / distanceIn1Price);
                newTp = currentPrice + (new_sl_dca_am / distanceIn1Price);
             }
@@ -538,9 +562,10 @@ void calculator_Sl_Dca_Am(){
             Print("SL : ", newSl);
             Print("CR : ", currentPrice);
             Print("TYPE : ", PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL ? "SELL" : "BUY");
-            if(sl == 0 && newSl != 0 && newTp != 0)
+            if(sl == 0 && newSl != 0 && newTp != 0 && countTiaLenh < limitLenhTia)
             {
               ModifyPositionByTicket(ticket , newSl , newTp);
+              countTiaLenh ++ ;
             }
            
          }
@@ -1129,5 +1154,6 @@ int GetHalfTrendSignal(datetime &signalTime, double &signalPrice)
 
 
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
+
 
 
