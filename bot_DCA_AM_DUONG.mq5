@@ -142,9 +142,8 @@ void OnTick()
     {
       lastSignalTime = signalTime;
       halfTrend = signal;
-    }else{
-      halfTrend = 0;
     }
+    
     checkDrawDown();
     // cập nhập giá
     double rsi = CalculateRSI(14 ,  PERIOD_H1);
@@ -265,11 +264,11 @@ void OnTick()
         
      }else{
          
-         if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong)
+         if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong && halfTrend != -1)
          {
              flagBotActive = openBuy(lotBuyDuong , 0 , 0 , magicNumberDuong , "BUY +| "  + IntegerToString(totalPositonBUY) + " AT: " + GetTimeVN());   
          }
-         if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong){
+         if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong && halfTrend != 1){
              flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL +| "  + IntegerToString(totalPositonSELL) + " AT: " + GetTimeVN());
          }
          
@@ -1171,6 +1170,7 @@ void resetBot()
 }
 
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
+
 
 
 
