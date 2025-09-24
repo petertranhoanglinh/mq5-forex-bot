@@ -139,13 +139,13 @@ void OnTick()
         
      
     int signal = GetHalfTrendSignal(signalTime, signalPrice);
-    if(signalTime > lastSignalTime)
+    if(signalTime > lastSignalTime && signal != 0)
     {
       lastSignalTime = signalTime;
       halfTrend = signal;
     }
     
-    if(TimeCurrent() - signalTime >  60*60*2 && signal == 0)
+    if(TimeCurrent() - signalTime >  60*60*5 && signal == 0)
     {
       halfTrend = 0;
     }
