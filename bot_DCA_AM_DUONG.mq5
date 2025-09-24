@@ -137,14 +137,18 @@ void OnTick()
     double signalPrice;
     static datetime lastSignalTime = 0;
         
+     
     int signal = GetHalfTrendSignal(signalTime, signalPrice);
-    if(signal != 0 && signalTime > lastSignalTime)
+    if(signalTime > lastSignalTime)
     {
       lastSignalTime = signalTime;
       halfTrend = signal;
     }
     
-    Print(halfTrend);
+    if(TimeCurrent() - signalTime >  60*60*2 && signal == 0)
+    {
+      halfTrend = 0;
+    }
     checkDrawDown();
     // cập nhập giá
     double rsi = CalculateRSI(14 ,  PERIOD_H1);
@@ -1181,6 +1185,7 @@ void resetBot()
 }
 
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
+
 
 
 
