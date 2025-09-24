@@ -144,6 +144,7 @@ void OnTick()
       halfTrend = signal;
     }
     
+    Print(halfTrend);
     checkDrawDown();
     // cập nhập giá
     double rsi = CalculateRSI(14 ,  PERIOD_H1);
@@ -266,10 +267,18 @@ void OnTick()
          
          if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong && halfTrend != -1)
          {
-             flagBotActive = openBuy(lotBuyDuong , 0 , 0 , magicNumberDuong , "BUY +| "  + IntegerToString(totalPositonBUY) + " AT: " + GetTimeVN());   
+              double volum = lotBuyDuong ;
+              if(halfTrend == 1){
+                volum = lotBuyDuong  * 3;
+              }
+             flagBotActive = openBuy(volum , 0 , 0 , magicNumberDuong , "BUY +| "  + IntegerToString(totalPositonBUY) + " AT: " + GetTimeVN());   
          }
          if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong && halfTrend != 1){
-             flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL +| "  + IntegerToString(totalPositonSELL) + " AT: " + GetTimeVN());
+              double volum = lotSellDuong ;
+              if(halfTrend == -1){
+                volum = lotSellDuong  * 3;
+              }
+             flagBotActive = openSell(volum, 0 , 0 , magicNumberDuong , "SELL +| "  + IntegerToString(totalPositonSELL) + " AT: " + GetTimeVN());
          }
          
          if(profitBuyDuong + profitSellDuong + profitTrend > checkProfitClose)
@@ -316,11 +325,13 @@ void OnTick()
      }else{
          if(minPriceBuyAm - SymbolInfoDouble(_Symbol, SYMBOL_ASK) >  dcaBuyPriceAm && isDcaBuyAm )
          {
+           
            flagBotActive = openBuy(lotBuyAm , 0 , tpBuyAm , magicNumberAm , "BUY -|  "  + IntegerToString(totalPositonAmBUY) + " AT: " + GetTimeVN()); 
          }
          
-         if(SymbolInfoDouble(_Symbol, SYMBOL_BID) - hightPriceSellAm > dcaSellPriceAm && isDcaSellAm)
+         if(SymbolInfoDouble(_Symbol, SYMBOL_BID) - hightPriceSellAm > dcaSellPriceAm && isDcaSellAm && halfTrend != 1)
          {
+           
            flagBotActive = openSell(lotSellAm , 0 , tpSellAm , magicNumberAm , "SELL -|  "  + IntegerToString(totalPositonAmSELL) + " AT: " + GetTimeVN());
          }
      }
