@@ -127,12 +127,19 @@ void OnTick()
         return;
       }
     }
+    bool flagDisableDcaDuong = false;
      if(!isMarketOpen() && istradinggood)
     {
+        
         Print("MARKET CLOSE BOT SHUTDOWN, " , GetTimeVN());
         return;
     }
     resetBot();
+    
+    if(isSideway(_Period)){
+      Print("THỊ TRƯỜNG SIDE WAY");
+      flagDisableDcaDuong = true;
+    }
     datetime signalTime;// đánh giấu thới gian ghi nhận có tín hiệu 
     double signalPrice;
     static datetime lastSignalTime = 0;
@@ -269,7 +276,7 @@ void OnTick()
         
      }else{
          
-         if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong && halfTrend != -1)
+         if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong && halfTrend != -1 && flagDisableDcaDuong == false)
          {
               double volum = lotBuyDuong ;
               if(halfTrend == 1){
@@ -277,7 +284,7 @@ void OnTick()
               }
              flagBotActive = openBuy(volum , 0 , 0 , magicNumberDuong , "BUY +| "  + IntegerToString(totalPositonBUY) + " AT: " + GetTimeVN());   
          }
-         if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong && halfTrend != 1){
+         if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong && halfTrend != 1 && flagDisableDcaDuong == false){
               double volum = lotSellDuong ;
               if(halfTrend == -1){
                 volum = lotSellDuong  * 3;
@@ -327,7 +334,7 @@ void OnTick()
          }
       
      }else{
-         if(minPriceBuyAm - SymbolInfoDouble(_Symbol, SYMBOL_ASK) >  dcaBuyPriceAm && isDcaBuyAm )
+         if(minPriceBuyAm - SymbolInfoDouble(_Symbol, SYMBOL_ASK) >  dcaBuyPriceAm && isDcaBuyAm)
          {
            
            flagBotActive = openBuy(lotBuyAm , 0 , tpBuyAm , magicNumberAm , "BUY -|  "  + IntegerToString(totalPositonAmBUY) + " AT: " + GetTimeVN()); 
@@ -1183,6 +1190,63 @@ void resetBot()
       CloseAllSellPositions(magicNumberDuong);
    }
 }
+
+// 📉 Hàm phát hiện thị trường sideway bằng ADX + Bollinger Band (chuẩn MQL5)
+bool isSideway(ENUM_TIMEFRAMES period)
+{
+   // --- 1️⃣ Lấy giá trị ADX ---
+   double adxLevel = 20.0;
+   int adxPeriod = 14;
+    int bbPeriod = 20; 
+    double bbThreshold = 0.01;
+   int adxHandle = iADX(_Symbol, period, adxPeriod);
+   if(adxHandle == INVALID_HANDLE)
+   {
+      Print("❌ Không tạo được handle ADX");
+      return false;
+   }
+
+   double adx[];
+   if(CopyBuffer(adxHandle, 0, 0, 1, adx) <= 0)
+   {
+      Print("❌ Không lấy được dữ liệu ADX");
+      return false;
+   }
+   double adxValue = adx[0];
+
+   // --- 2️⃣ Lấy giá trị Bollinger Bands ---
+   int bbHandle = iBands(_Symbol, PERIOD_H4, bbPeriod, 2.0, 0, PRICE_CLOSE);
+   if(bbHandle == INVALID_HANDLE)
+   {
+      Print("❌ Không tạo được handle Bollinger Band");
+      return false;
+   }
+
+   double upper[], lower[];
+   if(CopyBuffer(bbHandle, 0, 0, 1, upper) <= 0 || CopyBuffer(bbHandle, 2, 0, 1, lower) <= 0)
+   {
+      Print("❌ Không lấy được dữ liệu Bollinger Band");
+      return false;
+   }
+
+   // --- 3️⃣ Tính độ rộng Bollinger ---
+   double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double bandWidth = (upper[0] - lower[0]) / currentPrice;
+
+   // --- 4️⃣ Kiểm tra điều kiện sideway ---
+   bool adxWeak    = (adxValue < adxLevel);        // xu hướng yếu
+   bool bandNarrow = (bandWidth < bbThreshold);    // biên độ hẹp
+
+   if(adxWeak && bandNarrow)
+   {
+      PrintFormat("📉 Sideway detected on H4 | ADX=%.2f | BandWidth=%.2f%%", adxValue, bandWidth * 100);
+      return true;
+   }
+
+   return false;
+}
+
+
 
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
 
