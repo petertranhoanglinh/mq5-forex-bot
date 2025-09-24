@@ -83,6 +83,10 @@ uchar  InpCodeUpArrow = 233;   // Arrow code for 'UpArrow' (Wingdings)
 uchar  InpCodeDnArrow = 234;   // Arrow code for 'DnArrow' (Wingdings)
 int    InpShift       = 10;    // Vertical shift of arrows
 int halfTrend = 0;
+
+double static priceCheckResetBot = 10000;
+double price_for_reset = 1000;
+
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
@@ -100,6 +104,7 @@ int OnInit()
       return(INIT_FAILED);
    }
    countLimit = 0;
+   priceCheckResetBot = AccountInfoDouble(ACCOUNT_EQUITY);
    timeCheckOrderLimit = TimeCurrent();
    return(INIT_SUCCEEDED);
   }
@@ -127,6 +132,7 @@ void OnTick()
         Print("MARKET CLOSE BOT SHUTDOWN, " , GetTimeVN());
         return;
     }
+    resetBot();
     datetime signalTime;// đánh giấu thới gian ghi nhận có tín hiệu 
     double signalPrice;
     static datetime lastSignalTime = 0;
@@ -1152,6 +1158,17 @@ int GetHalfTrendSignal(datetime &signalTime, double &signalPrice)
 }
 
 
+void resetBot()
+{
+   if(AccountInfoDouble(ACCOUNT_EQUITY) >  priceCheckResetBot + price_for_reset)
+   {
+      priceCheckResetBot = AccountInfoDouble(ACCOUNT_EQUITY);
+      CloseAllBuyPositions(magicNumberAm);
+      CloseAllBuyPositions(magicNumberDuong);
+      CloseAllSellPositions(magicNumberAm);
+      CloseAllSellPositions(magicNumberDuong);
+   }
+}
 
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
 
