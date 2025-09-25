@@ -23,37 +23,32 @@ input bool  isDcaSellAm = true; // BẬT/ TẮT
 
 input group "__Set Các chức năng liên quan tới BUY DCA DƯƠNG"; 
 input double lotBuyDuong = 0.03; // Số lot vào lệnh 
-input double dcaPriceBuyDuong = 1; // khoảng giá DCA BUY DƯƠNG
+input double dcaPriceBuyDuong = 0.3; // khoảng giá DCA BUY DƯƠNG
 input double tpBuyDcaDuong  = 0;
 input bool  isDcaBuyDuong = true; // BẬT/ TẮT
-input int input_max_dca_buy_duong = 20; // max lệnh dca dương
 
 input group "__Set Các chức năng liên quan tới SELL DCA DƯƠNG"; 
 input double lotSellDuong = 0.03; // Số lot vào lệnh 
-input double dcaPriceSellDuong = 1;// khoảng giá DCA SELL DƯƠNG
+input double dcaPriceSellDuong = 0.3;// khoảng giá DCA SELL DƯƠNG
 input double tpSellDcaDuong  = 0;
 input bool  isDcaSellDuong = true; // BẬT/ TẮT
-input int input_max_dca_sell_duong = 20; // max lệnh dca dương
 
 
 
 input group "_Dời SL TP DCA DƯƠNG NÂNG CAO"; 
 input double tp_sl_dca_duong = 50; // lợi nhuận nếu tổng DCA dương đạt tới sẽ dời SL
 input double checkProfitClose = 100; // Lợi nhuận tổng để đóng DCA DƯƠNG
-input double new_tp_dca_duong = 30; // dời sl tp khi đổi trend
-input double new_sl_dca_duong = 30; // dời sl tp khi đổi trend
+input double new_tp_dca_duong = 10; // dời sl tp khi đổi trend
+input double new_sl_dca_duong = 10; // dời sl tp khi đổi trend
 
 input group "_Dời SL_TP DCA ÂM NÂNG CAO"; 
-input double new_tp_dca_am = 15;
-input double new_sl_dca_am = 15;
+input double new_tp_dca_am = 10;
+input double new_sl_dca_am = 10;
 
-input group "_Bật chức năng DCA dương theo trend";
-input bool isDcaFlowTrend = true; // bật tắt chức năng dca theo trend
 
 input group "_Option tia dca âm dương";
 input bool is_tia_dca_duong = true; // bật tắt chức năng tỉa dca dương
 input bool is_tia_dca_am = true; // bật tắt chức năng tỉa dca âm
-input double conditionPriceProfitTia = 500; // điều kiện tỉa lệnh dca dương
 input double profitLostPram = -50; // set lệnh nếu profit nhỏ hơn sẽ dời sl theo tín hiệu rsi
 
 input group "_Option chức năng giới hạn order limit";
@@ -160,24 +155,7 @@ void OnTick()
     {
       halfTrend = 0;
     }
-    checkDrawDown();
-    // cập nhập giá
     double rsi = CalculateRSI(14 ,  PERIOD_H1);
-    int type = 0;
-    if(isDcaFlowTrend){
-      if(rsi< 30 || halfTrend == 1)
-      {
-         type = 1;
-      }
-      if(rsi > 70 || halfTrend == -1 )
-      {
-         type = -1;
-      }
-      if(rsi > 30 && rsi < 70)
-      {
-         type = 0;
-      }
-    }
     double minPriceBuy = DBL_MAX;
     double hightPriceBuyDuong =  0;
     double lowPriceSellDuong = DBL_MAX;
@@ -229,7 +207,7 @@ void OnTick()
                 profitSellDuong = profitSellDuong + profit;
             }
          }
-         if(magicNumberDuong == positionMagic && comment == "TREND")
+         if(magicNumberDuong == positionMagic)
          {
             if(typePosition == POSITION_TYPE_BUY){
               total_dca_buy_duong_flow_trend ++;
@@ -253,14 +231,12 @@ void OnTick()
                if(pricePosition < minPriceBuyAm){
                   minPriceBuyAm = pricePosition;
                }
-            
             }else{
                totalPositonAmSELL ++ ;
                if(pricePosition > hightPriceSellAm){
                   hightPriceSellAm = pricePosition;
                }
             }
-            
          }
      }
      // DCA DƯƠNG
@@ -280,7 +256,7 @@ void OnTick()
         
      }else{
          
-         if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong && halfTrend != -1 && flagDisableDcaDuong == false && totalPositonBUY < input_max_dca_buy_duong)
+         if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong && halfTrend != -1 && flagDisableDcaDuong == false)
          {
               double volum = lotBuyDuong ;
               if(halfTrend == 1){
@@ -288,7 +264,7 @@ void OnTick()
               }
              flagBotActive = openBuy(volum , 0 , 0 , magicNumberDuong , "BUY +| "  + IntegerToString(totalPositonBUY) + " AT: " + GetTimeVN());   
          }
-         if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong && halfTrend != 1 && flagDisableDcaDuong == false && totalPositonSELL < input_max_dca_sell_duong){
+         if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong && halfTrend != 1 && flagDisableDcaDuong == false){
               double volum = lotSellDuong ;
               if(halfTrend == -1){
                 volum = lotSellDuong  * 3;
@@ -302,27 +278,6 @@ void OnTick()
             flagBotActive = CloseAllSellPositions(magicNumberDuong);
          }
      }
-     // dca duong theo trend
-    if(isDcaFlowTrend)
-    {
-       double artValue = GetATRValue(PERIOD_M5);
-       if(artValue == 0)
-       {
-         artValue = 10;
-       }
-
-        
-        if( (SymbolInfoDouble(_Symbol, SYMBOL_ASK) - high_buy_dca_duong_flow_trend > dcaPriceBuyDuong && type == 1) || (halfTrend == 1 && high_buy_dca_duong_flow_trend == 0) )  
-        {
-           flagBotActive = openBuy(lotBuyDuong , artValue , artValue , magicNumberDuong , "TREND" );
-        }
-        
-         if( (low_sell_dca_duong_flow_trend - SymbolInfoDouble(_Symbol, SYMBOL_BID) > dcaPriceSellDuong && type == -1) || (halfTrend == -1 && low_sell_dca_duong_flow_trend == DBL_MAX) )
-        {
-           flagBotActive = openSell(lotSellDuong , artValue , artValue , magicNumberDuong , "TREND" );
-        }
-    }
-     
      // DCA ÂM
      if(totalPositonAmBUY == 0 && totalPositonAmSELL == 0)
      {
@@ -351,20 +306,17 @@ void OnTick()
          }
      }
      
-     double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-     double equility = AccountInfoDouble(ACCOUNT_EQUITY);
-       if(balance - equility >  conditionPriceProfitTia){
-          if(is_tia_dca_duong){
-            calculator_Sl_Dca_Duong();
-          }
-          if((TimeCurrent() - time_check_sp_tp_dca_am) >= 60*5)
-          {
-              time_check_sp_tp_dca_am = TimeCurrent();
-              if(is_tia_dca_am){
-                calculator_Sl_Dca_Am();
-              }
-          }
-       }
+    
+    if(is_tia_dca_duong){
+      calculator_Sl_Dca_Duong();
+    }
+    if((TimeCurrent() - time_check_sp_tp_dca_am) >= 60*5)
+    {
+        time_check_sp_tp_dca_am = TimeCurrent();
+        if(is_tia_dca_am){
+          calculator_Sl_Dca_Am();
+        }
+    }
     
      if((TimeCurrent() - timelastedSendTelegram) > 5)
      {
@@ -462,13 +414,13 @@ void calculator_Sl_Dca_Duong(){
        }
     }
     
-   double rsi = CalculateRSI(14 ,  PERIOD_H1);
+   double rsi = CalculateRSI(14 ,  PERIOD_M15);
    int type = 0;
-   if(rsi< 30 || halfTrend == 1 )
+   if(rsi< 40)
       {
          type = 1;
       }
-      if(rsi > 70 || halfTrend == -1 )
+      if(rsi > 60)
       {
          type = -1;
    }
@@ -484,13 +436,6 @@ void calculator_Sl_Dca_Duong(){
          type = -1;
       }
       
-   }
-   if(totalBuy  == input_max_dca_buy_duong && haveSLBuy  == false){
-      type = 1;
-   }
-   
-   if(totalSell  == input_max_dca_sell_duong && haveSLSell  == false){
-      type = -1;
    }
    
    // cắt lô
@@ -571,16 +516,16 @@ void calculator_Sl_Dca_Am(){
             }
         }
     }
-    double rsi = CalculateRSI(14 ,  PERIOD_H1);
+    double rsi = CalculateRSI(14 ,  PERIOD_M15);
     int type = 0;
     int limitLenhTia =  int(arrLost.Size() * percent_tia_lenh); 
     int countTiaLenh = 0;
     
-    if(rsi< 30 || halfTrend == 1)
+    if(rsi< 40)
     {
       type = 1;
     }
-    if(rsi > 70 || halfTrend == -1 )
+    if(rsi > 60 )
     {
       type = -1;
     }
@@ -1038,117 +983,6 @@ double checkProfit(int typePosition)
 
 long lastUpdateId = 0;
 
-string CheckTelegramCaseWhenAction()
-{
-   string token  = "7542004417:AAF43NYwPUG3p9i3CWjXMV6j1C_qIrfZHhM";
-   string baseUrl = "https://api.telegram.org/bot" + token + "/";
-   string url = baseUrl + "getUpdates?offset=" + (string)(lastUpdateId+1);
-
-   string headers = "";
-   string content_type = "";
-   uchar post_data[];
-   uchar result[];
-   string result_headers;
-
-   int http_code = WebRequest("GET", url, headers, content_type, 5000, post_data, 0, result, result_headers);
-   if(http_code == -1)
-   {
-      Print("❌ WebRequest failed: ", GetLastError());
-      return "";
-   }
-
-   string response = CharArrayToString(result);
-   if(http_code != 200)
-   {
-      PrintFormat("❌ HTTP code=%d | response=%s", http_code, response);
-      return "";
-   }
-
-   int pos = StringFind(response, "\"update_id\":");
-   if(pos == -1) return "";
-
-   string sub = StringSubstr(response, pos+12, 20);
-   long newId = (long)StringToInteger(sub);
-   if(newId <= lastUpdateId) return "";
-   lastUpdateId = newId;
-
-   // --- lấy date ---
-   int posDate = StringFind(response, "\"date\":");
-   if(posDate == -1) return "";
-   string dateStr = StringSubstr(response, posDate+7, 10);
-   long msgTime = (long)StringToInteger(dateStr);
-   
-   datetime now = TimeCurrent();     // dạng datetime
-   long nowEpoch = (long)now;  
-   
-   Print("time current: " , nowEpoch );
-   Print("Time telegram: " , msgTime);
-   
-
-   // so với server time
-   if((nowEpoch- msgTime) > 5)
-   {
-      Print("tin nhắn cũ quá 5s bỏ qua");
-      return "";
-   }
-
-   // --- lấy chat_id ---
-   int chatPos = StringFind(response, "\"chat\":{\"id\":");
-   if(chatPos == -1) return "";
-
-   string chatSub = StringSubstr(response, chatPos+13, 20);
-   long chatIdLong = StringToInteger(chatSub);
-   string chatId = (string)chatIdLong;
-
-   if(chatId != t_code_telegram) 
-   {
-      Print("⚠️ Bỏ qua tin nhắn từ chat_id lạ: ", chatId);
-      return "";
-   }
-
-   if(StringFind(response, "\"text\":\"/stop\"") != -1 ||
-      StringFind(response, "\"text\":\"stop\"") != -1)
-   {
-      Print("📩 Nhận lệnh STOP từ chat_id hợp lệ");
-      return "stop";
-   }
-
-   if(StringFind(response, "\"text\":\"/close_sell\"") != -1 ||
-      StringFind(response, "\"text\":\"close_sell\"") != -1)
-   {
-      Print("📩 Nhận lệnh Close all SELL từ chat_id hợp lệ");
-      return "close_sell";
-   }
-   
-   if(StringFind(response, "\"text\":\"/close_buy\"") != -1 ||
-      StringFind(response, "\"text\":\"close_buy\"") != -1)
-   {
-      Print("📩 Nhận lệnh Close all BUY từ chat_id hợp lệ");
-      return "close_buy";
-   }
-   
-   if(StringFind(response, "\"text\":\"/check_profit_buy\"") != -1 ||
-      StringFind(response, "\"text\":\"check_profit_buy\"") != -1)
-   {
-      Print("📩 Nhận lệnh check_profit_buy từ chat_id hợp lệ");
-      return "check_profit_buy";
-   }
-   
-   if(StringFind(response, "\"text\":\"/check_profit_sell\"") != -1 ||
-      StringFind(response, "\"text\":\"check_profit_sell\"") != -1)
-   {
-      Print("📩 Nhận lệnh check_profit_sell từ chat_id hợp lệ");
-      return "check_profit_sell";
-   }
-   if(StringFind(response, "\"text\":\"/check_profit\"") != -1 ||
-      StringFind(response, "\"text\":\"check_profit\"") != -1)
-   {
-      Print("📩 Nhận lệnh check_profit từ chat_id hợp lệ");
-      return "check_profit";
-   }
-   return "";
-}
-
 bool checkOrderLimit(ENUM_TIMEFRAMES timefram , int limit){
   
    long timeLimit = 0;
@@ -1282,7 +1116,7 @@ bool isSideway(ENUM_TIMEFRAMES period)
 
    if(adxWeak && bandNarrow)
    {
-      PrintFormat("📉 Sideway detected on H4 | ADX=%.2f | BandWidth=%.2f%%", adxValue, bandWidth * 100);
+      PrintFormat("📉 Sideway detected | ADX=%.2f | BandWidth=%.2f%%", adxValue, bandWidth * 100);
       return true;
    }
 
@@ -1292,6 +1126,7 @@ bool isSideway(ENUM_TIMEFRAMES period)
 
 
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
+
 
 
 
