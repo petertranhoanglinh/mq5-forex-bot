@@ -9,19 +9,19 @@
 #include <Trade/Trade.mqh>
 CTrade trade;
 input group "__Set Các chức năng liên quan tới BUY DCA DƯƠNG"; 
-input double lotBuyDuong = 0.03; // Số lot vào lệnh 
-input double dcaPriceBuyDuong = 0.3; // khoảng giá DCA BUY DƯƠNG
+input double lotBuyDuong = 0.05; // Số lot vào lệnh 
+input double dcaPriceBuyDuong = 0.2; // khoảng giá DCA BUY DƯƠNG
 input double tpBuyDcaDuong  = 0;
 input bool  isDcaBuyDuong = true; // BẬT/ TẮT
 
 input group "__Set Các chức năng liên quan tới SELL DCA DƯƠNG"; 
-input double lotSellDuong = 0.03; // Số lot vào lệnh 
-input double dcaPriceSellDuong = 0.3;// khoảng giá DCA SELL DƯƠNG
+input double lotSellDuong = 0.05; // Số lot vào lệnh 
+input double dcaPriceSellDuong = 0.2;// khoảng giá DCA SELL DƯƠNG
 input double tpSellDcaDuong  = 0;
 input bool  isDcaSellDuong = true; // BẬT/ TẮT
 
 input group "_Dời SL TP DCA DƯƠNG NÂNG CAO"; 
-input double checkProfitClose = 10; // Lợi nhuận tổng để đóng DCA DƯƠNG
+input double checkProfitClose = 50; // Lợi nhuận tổng để đóng DCA DƯƠNG
 input double new_tp_dca_duong = 3; // dời sl tp khi đổi trend
 input double new_sl_dca_duong = 3; // dời sl tp khi đổi trend
 
@@ -92,6 +92,7 @@ void OnTick()
          if(magicNumberDuong == positionMagic)
          {
             if(typePosition == POSITION_TYPE_BUY){
+            
                totalPositonBUY ++ ; 
                AddToArray(arrBuy , pricePosition);
                profitBuyDuong = profitBuyDuong + profit;
@@ -112,7 +113,7 @@ void OnTick()
    {
        flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + GetTimeVN());
    }
-   calculator_Sl_Dca_Duong();
+   calculator_Sl_Dca_Duong(0.3);
    if(profitBuyDuong + profitSellDuong > checkProfitClose)
    {
       flagBotActive = CloseAllBuyPositions(magicNumberDuong);
@@ -120,10 +121,12 @@ void OnTick()
    }
 }
 // --------------------------------------------------logic bot function----------------------------------------------------------------------------------------------------------------
-void calculator_Sl_Dca_Duong(){
+void calculator_Sl_Dca_Duong(double rick_tia_lenh){
+   int limit_tia_lenh = 0;
    ulong arrWin[];
    ulong arrLost[];
    double profit = 0;
+   bool haveSL = false;
    for(int i = 0 ; i < PositionsTotal() ; i++)
     {
         ulong ticket = PositionGetTicket(i);
@@ -133,12 +136,16 @@ void calculator_Sl_Dca_Duong(){
         {
             if(PositionGetInteger(POSITION_MAGIC) == magicNumberDuong){        
                profit = profit + profitPostion;
-               if(profitPostion > 10)
+               if(profitPostion > 25)
                {
                  AddToArray(arrWin, ticket);
                }
-               if(profitPostion < -10){
+               if(profitPostion < -25){
                  AddToArray(arrLost, ticket);
+                 if(sl != 0)
+                 {
+                  haveSL = true;
+                 }
                }
             }
         }
@@ -169,6 +176,9 @@ void calculator_Sl_Dca_Duong(){
          }
       }
     }
+    
+    limit_tia_lenh = int(rick_tia_lenh * ArraySize(arrLost));
+    int countSL =0 ;
     for(int i = 0; i < ArraySize(arrLost); i++)
     {
       ulong ticket = arrLost[i];
@@ -183,15 +193,19 @@ void calculator_Sl_Dca_Duong(){
          double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
          double sl = PositionGetDouble(POSITION_SL);
          double newSl = 0;
+         double newTp = 0;
          if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
          {
             newSl = currentPrice - (MathAbs(openPrice - currentPrice)/2);
+            newTp = currentPrice + (MathAbs(openPrice - currentPrice)/2);
          }else{
             newSl =  currentPrice + (MathAbs(openPrice - currentPrice)/2);
+            newTp =  currentPrice - (MathAbs(openPrice - currentPrice)/2);
          }
-         if(sl == 0 &&  newSl != 0)
+         if(sl == 0 &&  newSl != 0 && countSL < limit_tia_lenh && !haveSL)
          {
-           ModifyPositionByTicket(ticket , newSl , 0);
+           ModifyPositionByTicket(ticket , newSl , newTp);
+           countSL ++;
          }
       }
     }
@@ -574,6 +588,60 @@ double getPriceSellDcaDuong(double &arr[])
    return arr[0] - input_price_in_step;
   }
   return arr[0];
+}
+
+bool isSideway(ENUM_TIMEFRAMES period)
+{
+   // --- 1️⃣ Lấy giá trị ADX ---
+   double adxLevel = 20.0;
+   int adxPeriod = 14;
+    int bbPeriod = 20; 
+    double bbThreshold = 0.01;
+   int adxHandle = iADX(_Symbol, period, adxPeriod);
+   if(adxHandle == INVALID_HANDLE)
+   {
+      Print("❌ Không tạo được handle ADX");
+      return false;
+   }
+
+   double adx[];
+   if(CopyBuffer(adxHandle, 0, 0, 1, adx) <= 0)
+   {
+      Print("❌ Không lấy được dữ liệu ADX");
+      return false;
+   }
+   double adxValue = adx[0];
+
+   // --- 2️⃣ Lấy giá trị Bollinger Bands ---
+   int bbHandle = iBands(_Symbol, PERIOD_H4, bbPeriod, 2.0, 0, PRICE_CLOSE);
+   if(bbHandle == INVALID_HANDLE)
+   {
+      Print("❌ Không tạo được handle Bollinger Band");
+      return false;
+   }
+
+   double upper[], lower[];
+   if(CopyBuffer(bbHandle, 0, 0, 1, upper) <= 0 || CopyBuffer(bbHandle, 2, 0, 1, lower) <= 0)
+   {
+      Print("❌ Không lấy được dữ liệu Bollinger Band");
+      return false;
+   }
+
+   // --- 3️⃣ Tính độ rộng Bollinger ---
+   double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double bandWidth = (upper[0] - lower[0]) / currentPrice;
+
+   // --- 4️⃣ Kiểm tra điều kiện sideway ---
+   bool adxWeak    = (adxValue < adxLevel);        // xu hướng yếu
+   bool bandNarrow = (bandWidth < bbThreshold);    // biên độ hẹp
+
+   if(adxWeak && bandNarrow)
+   {
+      PrintFormat("📉 Sideway detected | ADX=%.2f | BandWidth=%.2f%%", adxValue, bandWidth * 100);
+      return true;
+   }
+
+   return false;
 }
 
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
