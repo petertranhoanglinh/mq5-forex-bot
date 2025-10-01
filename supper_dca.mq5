@@ -49,6 +49,10 @@ long static countLimit;
 datetime static timeCheckOrderLimit = TimeCurrent();
 ENUM_TIMEFRAMES timeframeRSI = PERIOD_M5;
 ENUM_TIMEFRAMES timeframeIsSideWay = PERIOD_M5;
+bool flagDcaBuy = false;
+bool flagDcaSell = false;
+int countHedgeBuy = 0;
+int countHedgeSell = 0;
 int OnInit()
   {
    countLimit = 0;
@@ -119,13 +123,17 @@ void OnTick()
    if(profitSellDuong  > checkProfitClose/2)
    {
       flagBotActive = CloseAllSellPositions(magicNumberDuong);
+      flagDcaSell= false;
+      countHedgeSell = 0;
+      
     
    }
    
    if(profitBuyDuong  > checkProfitClose/2)
    {
       flagBotActive = CloseAllBuyPositions(magicNumberDuong);
-    
+      flagDcaBuy = false;
+      countHedgeBuy = 0;
    }
 }
 // --------------------------------------------------logic bot function----------------------------------------------------------------------------------------------------------------
@@ -567,9 +575,19 @@ double getPriceBuyDcaDuong(double &arr[])
    return MA_Custom(_Symbol ,PERIOD_M5 , 14);
   }
   QuickSortAsc(arr , 0 , size - 1);
+  if(flagDcaBuy)
+  {
+   if(countHedgeBuy == 0)
+   {
+     countHedgeBuy ++;
+     return arr[0];
+   }
+   return arr[countHedgeBuy];
+  }
   if(arr[size-1] - currentPrice > 10)
   {
    return currentPrice - dcaPriceBuyDuong - 0.1;
+   flagDcaBuy = true;
   }
   int step = size / input_max_lenh_in_step;
   if(step == 0)
@@ -596,8 +614,18 @@ double getPriceSellDcaDuong(double &arr[])
   }
   
   QuickSortAsc(arr , 0 , size - 1);
+  if(flagDcaSell)
+  {
+    if(countHedgeSell == 0)
+   {
+     countHedgeSell ++;
+     return arr[size - 1];
+   }
+   return arr[size - 1 - countHedgeSell];
+  }
   if(currentPrice - arr[0] > 10)
   {
+   flagDcaSell = true;
    return currentPrice + dcaPriceSellDuong + 0.1;
   }
   int step = size / input_max_lenh_in_step;
