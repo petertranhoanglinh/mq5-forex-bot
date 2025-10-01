@@ -30,6 +30,7 @@ input ENUM_TIMEFRAMES timeFrames = PERIOD_H1;// Khoảng thời gian giới hạ
 input double inputLimit = 200; // số lần giới hạn order
 input double input_price_in_step = 10;
 input int input_max_lenh_in_step = 5;
+
  
 // -------------------------
 // ⚙️ Cài đặt nâng cao khi bot gặp sự cố
@@ -389,56 +390,53 @@ void ModifyPositionByTicket(ulong ticket, double newSL, double newTP)
               " | Retcode=", result.retcode);
 }
 
-double CalculateRSI(int period ,  ENUM_TIMEFRAMES timeframe)
+double getPriceBuyDcaDuong(double &arr[])
 {
-    double gain = 0;
-    double loss = 0;
-    // Get closing prices
-    double closePrice[];
-    int bars = CopyClose(_Symbol, timeframe, 0, period+1, closePrice);
-    if(bars <= period) return 0; 
-    // Calculate gains and losses
-    for(int i=1; i<=period; i++)
-    {
-        double change = closePrice[i] - closePrice[i-1];
-        if(change > 0) gain += change;
-        else loss -= change; 
-    }
-    // Average gain and loss
-    gain /= period;
-    loss /= period;
-    if(loss == 0) return 100; 
-    double RS = gain / loss;
-    double RSI = 100 - (100 / (1 + RS));
-    return RSI;
+  int size = ArraySize(arr);
+  double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+  // chưa có lệnh nào
+  if(size == 0)
+  {
+   return MA_Custom(_Symbol ,PERIOD_M5 , 14);
+  }
+  QuickSortAsc(arr , 0 , size - 1);
+
+  int step = size / input_max_lenh_in_step;
+  if(step == 0)
+  {
+   return arr[size-1];
+  }
+ 
+  if(size % input_max_lenh_in_step == 0)
+  {
+   return arr[size-1] + input_price_in_step;
+  }
+  
+  return arr[size-1];
+}
+double getPriceSellDcaDuong(double &arr[])
+{
+  int size = ArraySize(arr);
+  double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+  // chưa có lệnh nào
+  if(size == 0)
+  {
+   return MA_Custom(_Symbol ,PERIOD_M5 , 14);
+  }
+  QuickSortAsc(arr , 0 , size - 1);
+  int step = size / input_max_lenh_in_step;
+  if(step == 0)
+  {
+   return arr[0];
+  }
+  if(size % input_max_lenh_in_step == 0)
+  {
+   return arr[0] - input_price_in_step;
+  }
+  return arr[0];
 }
 
-double GetATRValue(int atr_period = 14, ENUM_TIMEFRAMES timeframe = PERIOD_CURRENT)
-{
-    // Tạo handle cho chỉ báo ATR
-    int atr_handle = iATR(_Symbol, timeframe, atr_period);
-    
-    // Kiểm tra handle có hợp lệ không
-    if(atr_handle == INVALID_HANDLE)
-    {
-        Print("Không thể tạo handle cho ATR. Lỗi: ", GetLastError());
-        return 0;
-    }
-    // Khai báo mảng để lấy dữ liệu ATR
-    double atr_buffer[];
-    // Sao chép dữ liệu ATR vào mảng
-    int copied = CopyBuffer(atr_handle, 0, 0, 1, atr_buffer);
-    // Kiểm tra xem dữ liệu có được sao chép thành công không
-    if(copied <= 0)
-    {
-        Print("Không thể sao chép dữ liệu ATR. Lỗi: ", GetLastError());
-        return 0;
-    }
-    // Giải phóng handle
-    IndicatorRelease(atr_handle);
-    // Trả về giá trị ATR
-    return atr_buffer[0];
-}
+
 
 double checkProfit(int typePosition)
 {
@@ -553,127 +551,8 @@ void QuickSortDesc(double &arr[], int left, int right)
    if(left < j)  QuickSortDesc(arr, left, j);
    if(i < right) QuickSortDesc(arr, i, right);
 }
-double getPriceBuyDcaDuong(double &arr[])
-{
-  int size = ArraySize(arr);
-  double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-  // chưa có lệnh nào
-  if(size == 0)
-  {
-   return MA_Custom(_Symbol ,PERIOD_M5 , 14);
-  }
-  QuickSortAsc(arr , 0 , size - 1);
 
-  int step = size / input_max_lenh_in_step;
-  if(step == 0)
-  {
-   return arr[size-1];
-  }
- 
-  if(size % input_max_lenh_in_step == 0)
-  {
-   return arr[size-1] + input_price_in_step;
-  }
-  
-  return arr[size-1];
-}
-double getPriceSellDcaDuong(double &arr[])
-{
-  int size = ArraySize(arr);
-  double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-  // chưa có lệnh nào
-  if(size == 0)
-  {
-   return MA_Custom(_Symbol ,PERIOD_M5 , 14);
-  }
-  QuickSortAsc(arr , 0 , size - 1);
-  int step = size / input_max_lenh_in_step;
-  if(step == 0)
-  {
-   return arr[0];
-  }
-  if(size % input_max_lenh_in_step == 0)
-  {
-   return arr[0] - input_price_in_step;
-  }
-  
-  
- 
-  return arr[0];
-}
-int getTrendDirection(ENUM_TIMEFRAMES period)
-{
-   // --- 1️⃣ Lấy giá trị ADX & DI ---
-   double adxLevel = 20.0;
-   int adxPeriod = 14;
-   int bbPeriod = 20; 
-   double bbThreshold = 0.01;
 
-   int adxHandle = iADX(_Symbol, period, adxPeriod);
-   if(adxHandle == INVALID_HANDLE)
-   {
-      Print("❌ Không tạo được handle ADX");
-      return 0;
-   }
-
-   double adx[], plusDI[], minusDI[];
-   if(CopyBuffer(adxHandle, 0, 0, 1, adx) <= 0 || 
-      CopyBuffer(adxHandle, 1, 0, 1, plusDI) <= 0 || 
-      CopyBuffer(adxHandle, 2, 0, 1, minusDI) <= 0)
-   {
-      Print("❌ Không lấy được dữ liệu ADX/DI");
-      return 0;
-   }
-
-   double adxValue   = adx[0];
-   double plusDIVal  = plusDI[0];
-   double minusDIVal = minusDI[0];
-
-   // --- 2️⃣ Lấy giá trị Bollinger Bands ---
-   int bbHandle = iBands(_Symbol, period, bbPeriod, 2.0, 0, PRICE_CLOSE);
-   if(bbHandle == INVALID_HANDLE)
-   {
-      Print("❌ Không tạo được handle Bollinger Band");
-      return 0;
-   }
-
-   double upper[], lower[];
-   if(CopyBuffer(bbHandle, 0, 0, 1, upper) <= 0 || 
-      CopyBuffer(bbHandle, 2, 0, 1, lower) <= 0)
-   {
-      Print("❌ Không lấy được dữ liệu Bollinger Band");
-      return 0;
-   }
-
-   // --- 3️⃣ Tính độ rộng Bollinger ---
-   double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-   double bandWidth = (upper[0] - lower[0]) / currentPrice;
-
-   // --- 4️⃣ Kiểm tra điều kiện sideway ---
-   bool adxWeak    = (adxValue < adxLevel);        
-   bool bandNarrow = (bandWidth < bbThreshold);    
-
-   if(adxWeak && bandNarrow)
-   {
-      PrintFormat("📉 Sideway detected | ADX=%.2f | BandWidth=%.2f%%", adxValue, bandWidth * 100);
-      return 0;
-   }
-
-   // --- 5️⃣ Xác định xu hướng ---
-   if(plusDIVal > minusDIVal)
-   {
-      PrintFormat("📈 Uptrend detected | ADX=%.2f | +DI=%.2f > -DI=%.2f", adxValue, plusDIVal, minusDIVal);
-      return 1;
-   }
-   else if(minusDIVal > plusDIVal)
-   {
-      PrintFormat("📉 Downtrend detected | ADX=%.2f | -DI=%.2f > +DI=%.2f", adxValue, minusDIVal, plusDIVal);
-      return -1;
-   }
-
-   // fallback nếu không rõ
-   return 0;
-}
 
 
 
