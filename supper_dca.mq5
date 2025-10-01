@@ -9,13 +9,13 @@
 #include <Trade/Trade.mqh>
 CTrade trade;
 input group "__Set Các chức năng liên quan tới BUY DCA DƯƠNG"; 
-input double lotBuyDuong = 0.05; // Số lot vào lệnh 
+input double lotBuyDuong = 0.01; // Số lot vào lệnh 
 input double dcaPriceBuyDuong = 1; // khoảng giá DCA BUY DƯƠNG
 input double tpBuyDcaDuong  = 0;
 input bool  isDcaBuyDuong = true; // BẬT/ TẮT
 
 input group "__Set Các chức năng liên quan tới SELL DCA DƯƠNG"; 
-input double lotSellDuong = 0.05; // Số lot vào lệnh 
+input double lotSellDuong = 0.01; // Số lot vào lệnh 
 input double dcaPriceSellDuong = 1;// khoảng giá DCA SELL DƯƠNG
 input double tpSellDcaDuong  = 0;
 input bool  isDcaSellDuong = true; // BẬT/ TẮT
@@ -106,23 +106,26 @@ void OnTick()
   double hightPriceBuyDuong =  getPriceBuyDcaDuong(arrBuy);
   double lowPriceSellDuong = getPriceSellDcaDuong(arrSell);
   int trend = getTrendDirection(PERIOD_M1);
-   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong  )
+   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong && trend == 1 )
    {
        flagBotActive = openBuy(lotBuyDuong , 0 , 0 , magicNumberDuong , "BUY + | "  + IntegerToString(totalPositonBUY) + " | " + GetTimeVN());   
    }
-   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong  )
+   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong && trend == -1 )
    {
        flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + GetTimeVN());
    }
-   //calculator_Sl_Dca_Duong(0.3);
-   if(profitBuyDuong > checkProfitClose/2)
-   {
-      flagBotActive = CloseAllBuyPositions(magicNumberDuong);
-   }
+   calculator_Sl_Dca_Duong(0.3);
    
-   if(profitSellDuong > checkProfitClose/2)
+   if(profitSellDuong  > checkProfitClose/2)
    {
       flagBotActive = CloseAllSellPositions(magicNumberDuong);
+    
+   }
+   
+   if(profitBuyDuong  > checkProfitClose/2)
+   {
+      flagBotActive = CloseAllBuyPositions(magicNumberDuong);
+    
    }
 }
 // --------------------------------------------------logic bot function----------------------------------------------------------------------------------------------------------------
@@ -564,7 +567,7 @@ double getPriceBuyDcaDuong(double &arr[])
    return MA_Custom(_Symbol ,PERIOD_M5 , 14);
   }
   QuickSortAsc(arr , 0 , size - 1);
-  if(arr[size-1] - currentPrice > 30)
+  if(arr[size-1] - currentPrice > 10)
   {
    return currentPrice - dcaPriceBuyDuong - 0.1;
   }
@@ -593,7 +596,7 @@ double getPriceSellDcaDuong(double &arr[])
   }
   
   QuickSortAsc(arr , 0 , size - 1);
-  if(currentPrice - arr[0] > 30)
+  if(currentPrice - arr[0] > 10)
   {
    return currentPrice + dcaPriceSellDuong + 0.1;
   }
