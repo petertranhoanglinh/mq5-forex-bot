@@ -106,18 +106,22 @@ void OnTick()
   double hightPriceBuyDuong =  getPriceBuyDcaDuong(arrBuy);
   double lowPriceSellDuong = getPriceSellDcaDuong(arrSell);
   int trend = getTrendDirection(PERIOD_M1);
-   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong && trend == 1 )
+   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong  )
    {
        flagBotActive = openBuy(lotBuyDuong , 0 , 0 , magicNumberDuong , "BUY + | "  + IntegerToString(totalPositonBUY) + " | " + GetTimeVN());   
    }
-   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong && trend == 1 )
+   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong  )
    {
        flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + GetTimeVN());
    }
-   calculator_Sl_Dca_Duong(0.3);
-   if(profitBuyDuong + profitSellDuong > checkProfitClose)
+   //calculator_Sl_Dca_Duong(0.3);
+   if(profitBuyDuong > checkProfitClose/2)
    {
       flagBotActive = CloseAllBuyPositions(magicNumberDuong);
+   }
+   
+   if(profitSellDuong > checkProfitClose/2)
+   {
       flagBotActive = CloseAllSellPositions(magicNumberDuong);
    }
 }
@@ -167,9 +171,9 @@ void calculator_Sl_Dca_Duong(double rick_tia_lenh){
          double newSl = 0;
          if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
          {
-            newSl = currentPrice - (MathAbs(openPrice - currentPrice)/2);
+            newSl = openPrice + (MathAbs(openPrice - currentPrice)/2);
          }else{
-            newSl =  currentPrice + (MathAbs(openPrice - currentPrice)/2);
+            newSl =  openPrice - (MathAbs(openPrice - currentPrice)/2);
          }
          if(sl == 0 &&  newSl != 0)
          {
@@ -502,6 +506,7 @@ void QuickSortAsc(double &arr[], int left, int right)
    int i = left;
    int j = right;
    double pivot = arr[(left + right) / 2];
+   
 
    while(i <= j)
    {
@@ -552,33 +557,46 @@ void QuickSortDesc(double &arr[], int left, int right)
 double getPriceBuyDcaDuong(double &arr[])
 {
   int size = ArraySize(arr);
+  double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
   // chưa có lệnh nào
   if(size== 0)
   {
    return MA_Custom(_Symbol ,PERIOD_M5 , 14);
   }
   QuickSortAsc(arr , 0 , size - 1);
+  if(arr[size-1] - currentPrice > 30)
+  {
+   return currentPrice - dcaPriceBuyDuong - 0.1;
+  }
   int step = size / input_max_lenh_in_step;
   if(step == 0)
   {
    return arr[size-1];
   }
+ 
   if(size % input_max_lenh_in_step == 0)
   {
    return arr[size-1] + input_price_in_step;
   }
+  
   return arr[size-1];
 }
 
 double getPriceSellDcaDuong(double &arr[])
 {
   int size = ArraySize(arr);
+  double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
   // chưa có lệnh nào
   if(size == 0)
   {
    return MA_Custom(_Symbol ,PERIOD_M5 , 14);
   }
+  
   QuickSortAsc(arr , 0 , size - 1);
+  if(currentPrice - arr[0] > 30)
+  {
+   return currentPrice + dcaPriceSellDuong + 0.1;
+  }
   int step = size / input_max_lenh_in_step;
   if(step == 0)
   {
@@ -588,6 +606,7 @@ double getPriceSellDcaDuong(double &arr[])
   {
    return arr[0] - input_price_in_step;
   }
+ 
   return arr[0];
 }
 int getTrendDirection(ENUM_TIMEFRAMES period)
