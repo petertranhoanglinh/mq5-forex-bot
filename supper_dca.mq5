@@ -14,6 +14,7 @@ input double dcaPriceBuyDuong = 0.1; // khoảng giá DCA BUY DƯƠNG
 input double tpBuyDcaDuong  = 0;
 input bool  isDcaBuyDuong = true; // BẬT/ TẮT
 
+
 input group "__Set Các chức năng liên quan tới SELL DCA DƯƠNG"; 
 input double lotSellDuong = 0.01; // Số lot vào lệnh 
 input double dcaPriceSellDuong = 0.1;// khoảng giá DCA SELL DƯƠNG
@@ -32,7 +33,7 @@ input ENUM_TIMEFRAMES timeFrames = PERIOD_H1;// Khoảng thời gian giới hạ
 input double inputLimit = 200; // số lần giới hạn order
 input double input_price_in_step = 10;
 input int input_max_lenh_in_step = 30;
-
+input bool useTrend = true;
  
 // -------------------------
 // ⚙️ Cài đặt nâng cao khi bot gặp sự cố
@@ -111,11 +112,11 @@ void OnTick()
   double hightPriceBuyDuong =  getPriceBuyDcaDuong(arrBuy);
   double lowPriceSellDuong = getPriceSellDcaDuong(arrSell);
   int trend = getTrendDirection(PERIOD_M1);
-   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong >= dcaPriceBuyDuong && isDcaBuyDuong && isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) , arrBuy , dcaPriceBuyDuong) && trend == 1)
+   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong >= dcaPriceBuyDuong && isDcaBuyDuong && isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) , arrBuy , dcaPriceBuyDuong) && (trend == 1 || !useTrend))
    {
        flagBotActive = openBuy(lotBuyDuong , 0 , 0 , magicNumberDuong , "BUY + | "  + IntegerToString(totalPositonBUY) + " | " + GetTimeVN());   
    }
-   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >=  dcaPriceSellDuong && isDcaSellDuong && isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) , arrSell , dcaPriceBuyDuong) && trend == -1)
+   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >=  dcaPriceSellDuong && isDcaSellDuong && isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) , arrSell , dcaPriceBuyDuong) && (trend == -1 || !useTrend))
    {
        flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + GetTimeVN());
    }
@@ -413,9 +414,15 @@ double getPriceBuyDcaDuong(double &arr[])
    return currentPrice - dcaPriceBuyDuong - 0.01;
   }
   
+  
   if(flagBuy)
   {
-   return FindNearestPrice(currentPrice , arr);
+   double nearPrice = FindNearestPrice(currentPrice , arr);
+   if(nearPrice - currentPrice > 10)
+   {
+      flagBuy = false;
+   }
+   return nearPrice;
   }
   if(step == 0)
   {
@@ -448,7 +455,12 @@ double getPriceSellDcaDuong(double &arr[])
   }
   if(flagSell)
   {
-     return FindNearestPrice(currentPrice , arr);
+      double nearPrice = FindNearestPrice(currentPrice , arr);
+      if(currentPrice - nearPrice > 10)
+      {
+         flagSell = false;
+      }
+   return nearPrice;
   }
   if(step == 0)
   {
