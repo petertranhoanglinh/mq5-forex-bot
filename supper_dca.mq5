@@ -28,7 +28,7 @@ input double new_sl_dca_duong = 3; // dời sl tp khi đổi trend
 input group "_Option chức năng giới hạn order limit";
 input ENUM_TIMEFRAMES timeFrames = PERIOD_H1;// Khoảng thời gian giới hạn order
 input double inputLimit = 200; // số lần giới hạn order
-input double input_price_in_step = 10;
+input double input_price_in_step = 100;
 input int input_max_lenh_in_step = 5;
 
  
@@ -105,26 +105,26 @@ void OnTick()
             }
          }
   }
+  
   double hightPriceBuyDuong =  getPriceBuyDcaDuong(arrBuy);
   double lowPriceSellDuong = getPriceSellDcaDuong(arrSell);
-   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong >= dcaPriceBuyDuong && isDcaBuyDuong)
+  int trend = getTrendDirection(PERIOD_M1);
+   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong >= dcaPriceBuyDuong && isDcaBuyDuong && isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) , arrBuy , dcaPriceBuyDuong) && trend == 1)
    {
        flagBotActive = openBuy(lotBuyDuong , 0 , 0 , magicNumberDuong , "BUY + | "  + IntegerToString(totalPositonBUY) + " | " + GetTimeVN());   
    }
-   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >=  dcaPriceSellDuong && isDcaSellDuong)
+   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >=  dcaPriceSellDuong && isDcaSellDuong && isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) , arrSell , dcaPriceBuyDuong) && trend == -1)
    {
        flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + GetTimeVN());
    }
-  
    
-   if(profitSellDuong  > checkProfitClose/2)
-   {
-      flagBotActive = CloseAllSellPositions(magicNumberDuong);
-   }
-   
-   if(profitBuyDuong  > checkProfitClose/2)
+   if(profitBuyDuong + profitSellDuong   > checkProfitClose/2)
    {
       flagBotActive = CloseAllBuyPositions(magicNumberDuong);
+      flagBuy = false;
+      
+      flagBotActive = CloseAllSellPositions(magicNumberDuong);
+      flagSell = false;
    }
 }
 // --------------------------------------------------logic bot function----------------------------------------------------------------------------------------------------------------
@@ -289,7 +289,7 @@ bool CloseAllBuyPositions(int magic = -1)
     Print(" --------------------------------CLOSE BUY ORDER SUCCESS COUNT " + totalClosed + " | " + GetTimeVN() +" -----------------------------------------" );
     return result;
 }
-
+ 
 bool CloseAllSellPositions(int magic = -1)
 {
     bool result = true;
@@ -389,6 +389,8 @@ void ModifyPositionByTicket(ulong ticket, double newSL, double newTP)
         Print("✅ Updated ticket=", ticket, " | SL=", newSL, " | TP=", newTP, 
               " | Retcode=", result.retcode);
 }
+static bool flagBuy = false;
+static bool flagSell = false;
 
 double getPriceBuyDcaDuong(double &arr[])
 {
@@ -402,10 +404,23 @@ double getPriceBuyDcaDuong(double &arr[])
   QuickSortAsc(arr , 0 , size - 1);
 
   int step = size / input_max_lenh_in_step;
+  
+  //
+  if(arr[size-1] - currentPrice > 10 && !flagBuy)
+  {
+   flagBuy = true;
+   return currentPrice - dcaPriceBuyDuong - 0.01;
+  }
+  
+  if(flagBuy)
+  {
+   return FindNearestPrice(currentPrice , arr);
+  }
   if(step == 0)
   {
    return arr[size-1];
   }
+  
  
   if(size % input_max_lenh_in_step == 0)
   {
@@ -425,6 +440,15 @@ double getPriceSellDcaDuong(double &arr[])
   }
   QuickSortAsc(arr , 0 , size - 1);
   int step = size / input_max_lenh_in_step;
+  if(currentPrice - arr[0] > 10 && !flagSell)
+  {
+   flagSell = true;
+   return currentPrice + dcaPriceSellDuong + 0.01;
+  }
+  if(flagSell)
+  {
+     return FindNearestPrice(currentPrice , arr);
+  }
   if(step == 0)
   {
    return arr[0];
@@ -552,8 +576,118 @@ void QuickSortDesc(double &arr[], int left, int right)
    if(i < right) QuickSortDesc(arr, i, right);
 }
 
+double floorTo(double value, double step)
+{
+   return MathFloor(value / step) * step;
+}
 
 
+bool isAcceptPrice(double price, double &arr[] , double step)
+{
+    price = floorTo(price , step);
+   
+    for(int i = 0; i < ArraySize(arr); i++)
+    {
+       if(price == floorTo(arr[i] , step)){
+         return false;
+       }
+    }
+    return true;
+}
 
 
+double FindNearestPrice(double currentPrice, const double &arr[])
+{
+   if (ArraySize(arr) == 0)
+      return 0.0; // hoặc xử lý lỗi tuỳ bạn
+
+   double nearest = arr[0];
+   double minDiff = MathAbs(arr[0] - currentPrice);
+
+   for (int i = 1; i < ArraySize(arr); i++)
+   {
+      double diff = MathAbs(arr[i] - currentPrice);
+      if (diff < minDiff)
+      {
+         minDiff = diff;
+         nearest = arr[i];
+      }
+   }
+   return nearest;
+}
+
+
+int getTrendDirection(ENUM_TIMEFRAMES period)
+{
+   // --- 1️⃣ Lấy giá trị ADX & DI ---
+   double adxLevel = 20.0;
+   int adxPeriod = 14;
+   int bbPeriod = 20; 
+   double bbThreshold = 0.01;
+
+   int adxHandle = iADX(_Symbol, period, adxPeriod);
+   if(adxHandle == INVALID_HANDLE)
+   {
+      Print("❌ Không tạo được handle ADX");
+      return 0;
+   }
+
+   double adx[], plusDI[], minusDI[];
+   if(CopyBuffer(adxHandle, 0, 0, 1, adx) <= 0 || 
+      CopyBuffer(adxHandle, 1, 0, 1, plusDI) <= 0 || 
+      CopyBuffer(adxHandle, 2, 0, 1, minusDI) <= 0)
+   {
+      Print("❌ Không lấy được dữ liệu ADX/DI");
+      return 0;
+   }
+
+   double adxValue   = adx[0];
+   double plusDIVal  = plusDI[0];
+   double minusDIVal = minusDI[0];
+
+   // --- 2️⃣ Lấy giá trị Bollinger Bands ---
+   int bbHandle = iBands(_Symbol, period, bbPeriod, 2.0, 0, PRICE_CLOSE);
+   if(bbHandle == INVALID_HANDLE)
+   {
+      Print("❌ Không tạo được handle Bollinger Band");
+      return 0;
+   }
+
+   double upper[], lower[];
+   if(CopyBuffer(bbHandle, 0, 0, 1, upper) <= 0 || 
+      CopyBuffer(bbHandle, 2, 0, 1, lower) <= 0)
+   {
+      Print("❌ Không lấy được dữ liệu Bollinger Band");
+      return 0;
+   }
+
+   // --- 3️⃣ Tính độ rộng Bollinger ---
+   double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double bandWidth = (upper[0] - lower[0]) / currentPrice;
+
+   // --- 4️⃣ Kiểm tra điều kiện sideway ---
+   bool adxWeak    = (adxValue < adxLevel);        
+   bool bandNarrow = (bandWidth < bbThreshold);    
+
+   if(adxWeak && bandNarrow)
+   {
+      PrintFormat("📉 Sideway detected | ADX=%.2f | BandWidth=%.2f%%", adxValue, bandWidth * 100);
+      return 0;
+   }
+
+   // --- 5️⃣ Xác định xu hướng ---
+   if(plusDIVal > minusDIVal)
+   {
+      PrintFormat("📈 Uptrend detected | ADX=%.2f | +DI=%.2f > -DI=%.2f", adxValue, plusDIVal, minusDIVal);
+      return 1;
+   }
+   else if(minusDIVal > plusDIVal)
+   {
+      PrintFormat("📉 Downtrend detected | ADX=%.2f | -DI=%.2f > +DI=%.2f", adxValue, minusDIVal, plusDIVal);
+      return -1;
+   }
+
+   // fallback nếu không rõ
+   return 0;
+}
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
