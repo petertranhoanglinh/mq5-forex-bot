@@ -117,7 +117,7 @@ void OnTick()
    {
        flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + GetTimeVN());
    }
-   
+   tradingStopSL();
    if(profitBuyDuong  + profitSellDuong > checkProfitClose)
    {
       flagBotActive = CloseAllBuyPositions(magicNumberDuong);
@@ -688,5 +688,54 @@ int getTrendDirection(ENUM_TIMEFRAMES period)
 
    // fallback nếu không rõ
    return 0;
+}
+
+void tradingStopSL()
+{
+   ulong arrWin[];
+   double profit = 0;
+   for(int i = 0 ; i < PositionsTotal() ; i++)
+    {
+        ulong ticket = PositionGetTicket(i);
+        double profitPostion = PositionGetDouble(POSITION_PROFIT);
+        double sl = PositionGetDouble(POSITION_SL);
+        if(ticket > 0 && PositionSelectByTicket(ticket))
+        {
+            if(PositionGetInteger(POSITION_MAGIC) == magicNumberDuong){        
+               profit = profit + profitPostion;
+               if(profitPostion > 30)
+               {
+                 AddToArray(arrWin, ticket);
+               }
+            }
+        }
+    }
+    for(int i = 0; i < ArraySize(arrWin); i++)
+    {
+      ulong ticket = arrWin[i];
+      double currentPrice;
+      if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+          currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      else
+          currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      if(PositionSelectByTicket(ticket)){
+         double profit = PositionGetDouble(POSITION_PROFIT);
+         double volumn =  PositionGetDouble(POSITION_VOLUME);
+         double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+         double sl = PositionGetDouble(POSITION_SL);
+         double newSl = 0;
+         if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+         {
+            newSl = openPrice + (MathAbs(openPrice - currentPrice)/2);
+         }else{
+            newSl =  openPrice - (MathAbs(openPrice - currentPrice)/2);
+         }
+         if(sl == 0 &&  newSl != 0)
+         {
+           ModifyPositionByTicket(ticket , newSl , 0);
+         }
+      }
+    }
+
 }
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
