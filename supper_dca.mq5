@@ -28,8 +28,8 @@ input double new_sl_dca_duong = 3; // dời sl tp khi đổi trend
 input group "_Option chức năng giới hạn order limit";
 input ENUM_TIMEFRAMES timeFrames = PERIOD_H1;// Khoảng thời gian giới hạn order
 input double inputLimit = 200; // số lần giới hạn order
-input double input_price_in_step = 100;
-input int input_max_lenh_in_step = 5;
+input double input_price_in_step = 10;
+input int input_max_lenh_in_step = 30;
 
  
 // -------------------------
