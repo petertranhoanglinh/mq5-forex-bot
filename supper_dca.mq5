@@ -22,8 +22,10 @@ input bool  isDcaSellDuong = true; // BẬT/ TẮT
 
 input group "_Dời SL TP DCA DƯƠNG NÂNG CAO"; 
 input double checkProfitClose = 50; // Lợi nhuận tổng để đóng DCA DƯƠNG
-input double new_tp_dca_duong = 3; // dời sl tp khi đổi trend
-input double new_sl_dca_duong = 3; // dời sl tp khi đổi trend
+input double profit_aplied_sl = 20; // Mức profit bạn muốn đạt để dời sl nhằm đảm bảo lợi nhuận
+
+double new_tp_dca_duong = 3; // dời sl tp khi đổi trend
+double new_sl_dca_duong = 3; // dời sl tp khi đổi trend
 
 input group "_Option chức năng giới hạn order limit";
 input ENUM_TIMEFRAMES timeFrames = PERIOD_H1;// Khoảng thời gian giới hạn order
@@ -703,7 +705,7 @@ void tradingStopSL()
         {
             if(PositionGetInteger(POSITION_MAGIC) == magicNumberDuong){        
                profit = profit + profitPostion;
-               if(profitPostion > 30)
+               if(profitPostion > profit_aplied_sl)
                {
                  AddToArray(arrWin, ticket);
                }
