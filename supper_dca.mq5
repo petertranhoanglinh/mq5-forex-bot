@@ -118,11 +118,10 @@ void OnTick()
        flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + GetTimeVN());
    }
    
-   if(profitBuyDuong + profitSellDuong   > checkProfitClose/2)
+   if(profitBuyDuong  + profitSellDuong > checkProfitClose)
    {
       flagBotActive = CloseAllBuyPositions(magicNumberDuong);
       flagBuy = false;
-      
       flagBotActive = CloseAllSellPositions(magicNumberDuong);
       flagSell = false;
    }
