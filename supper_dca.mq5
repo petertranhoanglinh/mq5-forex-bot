@@ -22,11 +22,11 @@ input double tpSellDcaDuong  = 0;
 input bool  isDcaSellDuong = true; // BẬT/ TẮT
 
 input group "_Dời SL TP DCA DƯƠNG NÂNG CAO"; 
+input bool is_tradding_stop = true;
 input double checkProfitClose = 50; // Lợi nhuận tổng để đóng DCA DƯƠNG
-input double profit_aplied_sl = 20; // Mức profit bạn muốn đạt để dời sl nhằm đảm bảo lợi nhuận
+input double profit_aplied_sl = 30; // Mức profit bạn muốn đạt để dời sl nhằm đảm bảo lợi nhuận
 
-double new_tp_dca_duong = 3; // dời sl tp khi đổi trend
-double new_sl_dca_duong = 3; // dời sl tp khi đổi trend
+
 
 input group "_Option chức năng giới hạn order limit";
 input ENUM_TIMEFRAMES timeFrames = PERIOD_H1;// Khoảng thời gian giới hạn order
@@ -34,6 +34,17 @@ input double inputLimit = 200; // số lần giới hạn order
 input double input_price_in_step = 10;
 input int input_max_lenh_in_step = 30;
 input bool useTrend = true;
+
+
+
+input group "_Option chức năng liên quan tới tỉa lệnh";
+input bool is_tia_lenh = false; // sử dụng tỉa lệnh hay không
+input double he_so_vao_lai_lenh_khi_gia_nguoc = 30;
+input double profit_am_tia_len = 100; // giá trị profit -âm đạt tới để tỉa lệnh
+input double new_tp_dca_duong = 3; // dời sl tp khi đổi trend
+input double new_sl_dca_duong = 3; // dời sl tp khi đổi trend
+input int so_lenh_lenh_tia_1_lan = 1;
+
  
 // -------------------------
 // ⚙️ Cài đặt nâng cao khi bot gặp sự cố
@@ -120,7 +131,12 @@ void OnTick()
    {
        flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + GetTimeVN());
    }
-   tradingStopSL();
+   if(is_tradding_stop){
+     tradingStopSL();
+   }
+   if(is_tia_lenh){
+     tia_lenh_dca(so_lenh_lenh_tia_1_lan);
+   }
    if(profitBuyDuong  + profitSellDuong > checkProfitClose)
    {
       flagBotActive = CloseAllBuyPositions(magicNumberDuong);
@@ -130,8 +146,7 @@ void OnTick()
    }
 }
 // --------------------------------------------------logic bot function----------------------------------------------------------------------------------------------------------------
-void calculator_Sl_Dca_Duong( int limit_tia_lenh){
-   ulong arrWin[];
+void tia_lenh_dca( int limit_tia_lenh){
    ulong arrLost[];
    double profit = 0;
    bool haveSL = false;
@@ -144,11 +159,7 @@ void calculator_Sl_Dca_Duong( int limit_tia_lenh){
         {
             if(PositionGetInteger(POSITION_MAGIC) == magicNumberDuong){        
                profit = profit + profitPostion;
-               if(profitPostion > 25)
-               {
-                 AddToArray(arrWin, ticket);
-               }
-               if(profitPostion < -25){
+               if(profitPostion < -MathAbs(profit_am_tia_len)){
                  AddToArray(arrLost, ticket);
                  if(sl != 0)
                  {
@@ -157,32 +168,6 @@ void calculator_Sl_Dca_Duong( int limit_tia_lenh){
                }
             }
         }
-    }
-    for(int i = 0; i < ArraySize(arrWin); i++)
-    {
-      ulong ticket = arrWin[i];
-      double currentPrice;
-      if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
-          currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-      else
-          currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-      if(PositionSelectByTicket(ticket)){
-         double profit = PositionGetDouble(POSITION_PROFIT);
-         double volumn =  PositionGetDouble(POSITION_VOLUME);
-         double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
-         double sl = PositionGetDouble(POSITION_SL);
-         double newSl = 0;
-         if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
-         {
-            newSl = openPrice + (MathAbs(openPrice - currentPrice)/2);
-         }else{
-            newSl =  openPrice - (MathAbs(openPrice - currentPrice)/2);
-         }
-         if(sl == 0 &&  newSl != 0)
-         {
-           ModifyPositionByTicket(ticket , newSl , 0);
-         }
-      }
     }
     
     int countSL =0 ;
@@ -408,7 +393,7 @@ double getPriceBuyDcaDuong(double &arr[])
   int step = size / input_max_lenh_in_step;
   
   //
-  if(arr[size-1] - currentPrice > 10 && !flagBuy)
+  if(arr[size-1] - currentPrice > he_so_vao_lai_lenh_khi_gia_nguoc && !flagBuy)
   {
    flagBuy = true;
    return currentPrice - dcaPriceBuyDuong - 0.01;
@@ -418,7 +403,7 @@ double getPriceBuyDcaDuong(double &arr[])
   if(flagBuy)
   {
    double nearPrice = FindNearestPrice(currentPrice , arr);
-   if(nearPrice - currentPrice > 10)
+   if(nearPrice - currentPrice > he_so_vao_lai_lenh_khi_gia_nguoc)
    {
       flagBuy = false;
    }
@@ -448,7 +433,7 @@ double getPriceSellDcaDuong(double &arr[])
   }
   QuickSortAsc(arr , 0 , size - 1);
   int step = size / input_max_lenh_in_step;
-  if(currentPrice - arr[0] > 10 && !flagSell)
+  if(currentPrice - arr[0] > he_so_vao_lai_lenh_khi_gia_nguoc && !flagSell)
   {
    flagSell = true;
    return currentPrice + dcaPriceSellDuong + 0.01;
@@ -456,7 +441,7 @@ double getPriceSellDcaDuong(double &arr[])
   if(flagSell)
   {
       double nearPrice = FindNearestPrice(currentPrice , arr);
-      if(currentPrice - nearPrice > 10)
+      if(currentPrice - nearPrice > he_so_vao_lai_lenh_khi_gia_nguoc)
       {
          flagSell = false;
       }
