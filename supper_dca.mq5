@@ -13,6 +13,7 @@ input double lotBuyDuong = 0.01; // Số lot vào lệnh
 input double dcaPriceBuyDuong = 0.1; // khoảng giá DCA BUY DƯƠNG
 input double tpBuyDcaDuong  = 0;
 input bool  isDcaBuyDuong = true; // BẬT/ TẮT
+input double he_so_vao_lai_lenh_khi_gia_nguoc_buy = 30;
 
 
 input group "__Set Các chức năng liên quan tới SELL DCA DƯƠNG"; 
@@ -20,6 +21,10 @@ input double lotSellDuong = 0.01; // Số lot vào lệnh
 input double dcaPriceSellDuong = 0.1;// khoảng giá DCA SELL DƯƠNG
 input double tpSellDcaDuong  = 0;
 input bool  isDcaSellDuong = true; // BẬT/ TẮT
+input double he_so_vao_lai_lenh_khi_gia_nguoc_sell = 30;
+
+
+
 
 input group "_Dời SL TP DCA DƯƠNG NÂNG CAO"; 
 input bool is_tradding_stop = true;
@@ -39,7 +44,6 @@ input bool useTrend = true;
 
 input group "_Option chức năng liên quan tới tỉa lệnh";
 input bool is_tia_lenh = false; // sử dụng tỉa lệnh hay không
-input double he_so_vao_lai_lenh_khi_gia_nguoc = 30;
 input double profit_am_tia_len = 100; // giá trị profit -âm đạt tới để tỉa lệnh
 input double new_tp_dca_duong = 3; // dời sl tp khi đổi trend
 input double new_sl_dca_duong = 3; // dời sl tp khi đổi trend
@@ -393,7 +397,7 @@ double getPriceBuyDcaDuong(double &arr[])
   int step = size / input_max_lenh_in_step;
   
   //
-  if(arr[size-1] - currentPrice > he_so_vao_lai_lenh_khi_gia_nguoc && !flagBuy)
+  if(arr[size-1] - currentPrice > he_so_vao_lai_lenh_khi_gia_nguoc_buy && !flagBuy)
   {
    flagBuy = true;
    return currentPrice - dcaPriceBuyDuong - 0.01;
@@ -403,7 +407,7 @@ double getPriceBuyDcaDuong(double &arr[])
   if(flagBuy)
   {
    double nearPrice = FindNearestPrice(currentPrice , arr);
-   if(nearPrice - currentPrice > he_so_vao_lai_lenh_khi_gia_nguoc)
+   if(nearPrice - currentPrice > he_so_vao_lai_lenh_khi_gia_nguoc_buy)
    {
       flagBuy = false;
    }
@@ -433,7 +437,7 @@ double getPriceSellDcaDuong(double &arr[])
   }
   QuickSortAsc(arr , 0 , size - 1);
   int step = size / input_max_lenh_in_step;
-  if(currentPrice - arr[0] > he_so_vao_lai_lenh_khi_gia_nguoc && !flagSell)
+  if(currentPrice - arr[0] > he_so_vao_lai_lenh_khi_gia_nguoc_sell && !flagSell)
   {
    flagSell = true;
    return currentPrice + dcaPriceSellDuong + 0.01;
@@ -441,7 +445,7 @@ double getPriceSellDcaDuong(double &arr[])
   if(flagSell)
   {
       double nearPrice = FindNearestPrice(currentPrice , arr);
-      if(currentPrice - nearPrice > he_so_vao_lai_lenh_khi_gia_nguoc)
+      if(currentPrice - nearPrice > he_so_vao_lai_lenh_khi_gia_nguoc_sell)
       {
          flagSell = false;
       }
