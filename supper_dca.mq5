@@ -23,6 +23,9 @@ input double tpSellDcaDuong  = 0;
 input bool  isDcaSellDuong = true; // BẬT/ TẮT
 input double he_so_vao_lai_lenh_khi_gia_nguoc_sell = 30;
 
+input group "__Set Các chức năng liên quan tới DCA DƯƠNG nâng cao";
+input bool isMergeArr = true; // bạn có muốn khoảng giá dca buy và sell ko trùng nhau  
+
 
 
 
@@ -127,11 +130,27 @@ void OnTick()
   double hightPriceBuyDuong =  getPriceBuyDcaDuong(arrBuy);
   double lowPriceSellDuong = getPriceSellDcaDuong(arrSell);
   int trend = getTrendDirection(PERIOD_M1);
-   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong >= dcaPriceBuyDuong && isDcaBuyDuong && isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) , arrBuy , dcaPriceBuyDuong) && (trend == 1 || !useTrend))
+  
+  double arrMerge[];
+  bool isAcceptBuy = false;
+  bool isAcceptSell = false;
+  
+  if(isMergeArr)
+  {
+   MergeArrays(arrBuy , arrSell , arrMerge);
+   isAcceptBuy =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrMerge , dcaPriceBuyDuong);
+   isAcceptSell =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrMerge , dcaPriceSellDuong);
+  }else{
+    isAcceptBuy =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrBuy , dcaPriceBuyDuong);
+    isAcceptSell =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrSell , dcaPriceSellDuong);
+  }
+  
+  
+   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong >= dcaPriceBuyDuong && isDcaBuyDuong && isAcceptBuy && (trend == 1 || !useTrend))
    {
        flagBotActive = openBuy(lotBuyDuong , 0 , 0 , magicNumberDuong , "BUY + | "  + IntegerToString(totalPositonBUY) + " | " + GetTimeVN());   
    }
-   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >=  dcaPriceSellDuong && isDcaSellDuong && isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) , arrSell , dcaPriceBuyDuong) && (trend == -1 || !useTrend))
+   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >=  dcaPriceSellDuong && isDcaSellDuong && isAcceptSell && (trend == -1 || !useTrend))
    {
        flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + GetTimeVN());
    }
@@ -739,6 +758,24 @@ void tradingStopSL()
          }
       }
     }
-
 }
+
+// 📌 Hàm gộp 2 mảng double thành 1 mảng
+void MergeArrays(const double &arr1[], const double &arr2[], double &result[])
+{
+   int size1 = ArraySize(arr1);
+   int size2 = ArraySize(arr2);
+
+   // Resize mảng kết quả để chứa tất cả phần tử
+   ArrayResize(result, size1 + size2);
+
+   // Sao chép arr1 vào result
+   for(int i = 0; i < size1; i++)
+      result[i] = arr1[i];
+
+   // Sao chép arr2 vào sau arr1
+   for(int j = 0; j < size2; j++)
+      result[size1 + j] = arr2[j];
+}
+
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
