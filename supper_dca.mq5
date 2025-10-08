@@ -25,6 +25,8 @@ input double he_so_vao_lai_lenh_khi_gia_nguoc_sell = 30;
 
 input group "__Set Các chức năng liên quan tới DCA DƯƠNG nâng cao";
 input bool isMergeArr = true; // bạn có muốn khoảng giá dca buy và sell ko trùng nhau  
+input double lamtronchuoi = 20;
+input int max_lenh_trong_chuoi = 10;
 
 
 
@@ -39,8 +41,6 @@ input double profit_aplied_sl = 30; // Mức profit bạn muốn đạt để d�
 input group "_Option chức năng giới hạn order limit";
 input ENUM_TIMEFRAMES timeFrames = PERIOD_H1;// Khoảng thời gian giới hạn order
 input double inputLimit = 200; // số lần giới hạn order
-input double input_price_in_step = 10;
-input int input_max_lenh_in_step = 30;
 input bool useTrend = true;
 
 
@@ -73,6 +73,8 @@ double avgPriceSell = 0;
 double avgPriceBuy = 0;
 int countHedgeBuy = 0;
 int countHedgeSell = 0;
+double profitBuyDuong = 0;
+double profitSellDuong = 0;
 int OnInit()
   {
    countLimit = 0;
@@ -99,8 +101,9 @@ void OnTick()
     }
     int totalPositonBUY = 0;
     int totalPositonSELL = 0;
-    double profitBuyDuong = 0;
-    double profitSellDuong = 0;
+    profitBuyDuong = 0;
+    profitSellDuong = 0;
+
     double arrBuy [];
     double arrSell [];
     for(int i = 0 ; i <  PositionsTotal() ; i ++ ){
@@ -135,31 +138,39 @@ void OnTick()
   bool isAcceptBuy = false;
   bool isAcceptSell = false;
   
+  bool ismaxBuy = false;
+  bool ismaxSell = false;
+  
   if(isMergeArr)
   {
-   MergeArrays(arrBuy , arrSell , arrMerge);
-   isAcceptBuy =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrMerge , dcaPriceBuyDuong);
-   isAcceptSell =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrMerge , dcaPriceSellDuong);
+    MergeArrays(arrBuy , arrSell , arrMerge);
+    isAcceptBuy =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrMerge , dcaPriceBuyDuong);
+    isAcceptSell =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrMerge , dcaPriceSellDuong);
+    ismaxBuy =  rankMaxOpenPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrMerge , lamtronchuoi);
+    ismaxSell =  rankMaxOpenPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrMerge, lamtronchuoi);
   }else{
     isAcceptBuy =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrBuy , dcaPriceBuyDuong);
     isAcceptSell =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrSell , dcaPriceSellDuong);
+    
+    ismaxBuy =  rankMaxOpenPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrBuy , lamtronchuoi);
+    ismaxSell =  rankMaxOpenPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrSell , lamtronchuoi);
   }
-  
-  
-   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong >= dcaPriceBuyDuong && isDcaBuyDuong && isAcceptBuy && (trend == 1 || !useTrend))
+   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong && isAcceptBuy && ismaxBuy && (trend == 1 || !useTrend))
    {
        flagBotActive = openBuy(lotBuyDuong , 0 , 0 , magicNumberDuong , "BUY + | "  + IntegerToString(totalPositonBUY) + " | " + GetTimeVN());   
    }
-   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >=  dcaPriceSellDuong && isDcaSellDuong && isAcceptSell && (trend == -1 || !useTrend))
+   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong && isAcceptSell && ismaxSell && (trend == -1 || !useTrend))
    {
        flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + GetTimeVN());
    }
+   
    if(is_tradding_stop){
      tradingStopSL();
    }
    if(is_tia_lenh){
      tia_lenh_dca(so_lenh_lenh_tia_1_lan);
    }
+   
    if(profitBuyDuong  + profitSellDuong > checkProfitClose)
    {
       flagBotActive = CloseAllBuyPositions(magicNumberDuong);
@@ -412,8 +423,6 @@ double getPriceBuyDcaDuong(double &arr[])
    return MA_Custom(_Symbol ,PERIOD_M5 , 14);
   }
   QuickSortAsc(arr , 0 , size - 1);
-
-  int step = size / input_max_lenh_in_step;
   
   //
   if(arr[size-1] - currentPrice > he_so_vao_lai_lenh_khi_gia_nguoc_buy && !flagBuy)
@@ -430,17 +439,7 @@ double getPriceBuyDcaDuong(double &arr[])
    {
       flagBuy = false;
    }
-   return nearPrice;
-  }
-  if(step == 0)
-  {
-   return arr[size-1];
-  }
-  
- 
-  if(size % input_max_lenh_in_step == 0)
-  {
-   return arr[size-1] + input_price_in_step;
+   return  MA_Custom(_Symbol ,PERIOD_M5 , 14);
   }
   
   return arr[size-1];
@@ -455,7 +454,6 @@ double getPriceSellDcaDuong(double &arr[])
    return MA_Custom(_Symbol ,PERIOD_M5 , 14);
   }
   QuickSortAsc(arr , 0 , size - 1);
-  int step = size / input_max_lenh_in_step;
   if(currentPrice - arr[0] > he_so_vao_lai_lenh_khi_gia_nguoc_sell && !flagSell)
   {
    flagSell = true;
@@ -468,16 +466,9 @@ double getPriceSellDcaDuong(double &arr[])
       {
          flagSell = false;
       }
-   return nearPrice;
+   return  MA_Custom(_Symbol ,PERIOD_M5 , 14);
   }
-  if(step == 0)
-  {
-   return arr[0];
-  }
-  if(size % input_max_lenh_in_step == 0)
-  {
-   return arr[0] - input_price_in_step;
-  }
+ 
   return arr[0];
 }
 
@@ -616,6 +607,29 @@ bool isAcceptPrice(double price, double &arr[] , double step)
     return true;
 }
 
+bool rankMaxOpenPrice(double price,double &arr[] , double step)
+{
+   price = floorTo(price , step); 
+   int count = 0;
+   
+
+   for(int i = 0; i < ArraySize(arr); i++)
+   {
+      if(arr[i] > price  && arr[i] < price + step)
+      {
+         count++;
+      }    
+   }
+
+   if(count > max_lenh_trong_chuoi)
+   {
+      return false;
+   }
+   
+   return true;
+}
+
+
 
 double FindNearestPrice(double currentPrice, const double &arr[])
 {
@@ -645,14 +659,12 @@ int getTrendDirection(ENUM_TIMEFRAMES period)
    int adxPeriod = 14;
    int bbPeriod = 20; 
    double bbThreshold = 0.01;
-
    int adxHandle = iADX(_Symbol, period, adxPeriod);
    if(adxHandle == INVALID_HANDLE)
    {
       Print("❌ Không tạo được handle ADX");
       return 0;
    }
-
    double adx[], plusDI[], minusDI[];
    if(CopyBuffer(adxHandle, 0, 0, 1, adx) <= 0 || 
       CopyBuffer(adxHandle, 1, 0, 1, plusDI) <= 0 || 
@@ -661,11 +673,9 @@ int getTrendDirection(ENUM_TIMEFRAMES period)
       Print("❌ Không lấy được dữ liệu ADX/DI");
       return 0;
    }
-
    double adxValue   = adx[0];
    double plusDIVal  = plusDI[0];
    double minusDIVal = minusDI[0];
-
    // --- 2️⃣ Lấy giá trị Bollinger Bands ---
    int bbHandle = iBands(_Symbol, period, bbPeriod, 2.0, 0, PRICE_CLOSE);
    if(bbHandle == INVALID_HANDLE)
