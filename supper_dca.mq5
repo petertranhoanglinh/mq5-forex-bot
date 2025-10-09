@@ -24,9 +24,9 @@ input bool  isDcaSellDuong = true; // BẬT/ TẮT
 input double he_so_vao_lai_lenh_khi_gia_nguoc_sell = 30;
 
 input group "__Set Các chức năng liên quan tới DCA DƯƠNG nâng cao";
-input bool isMergeArr = true; // bạn có muốn khoảng giá dca buy và sell ko trùng nhau  
 input double lamtronchuoi = 50;
 input int max_lenh_trong_chuoi = 20;
+
 
 
 
@@ -35,6 +35,7 @@ input group "_Dời SL TP DCA DƯƠNG NÂNG CAO";
 input bool is_tradding_stop = true;
 input double checkProfitClose = 50; // Lợi nhuận tổng để đóng DCA DƯƠNG
 input double profit_aplied_sl = 30; // Mức profit bạn muốn đạt để dời sl nhằm đảm bảo lợi nhuận
+input bool is_sl_next = false;
 
 
 
@@ -48,9 +49,9 @@ input bool useTrend = true;
 input group "_Option chức năng liên quan tới tỉa lệnh";
 input bool is_tia_lenh = false; // sử dụng tỉa lệnh hay không
 input double profit_am_tia_len = 100; // giá trị profit -âm đạt tới để tỉa lệnh
-input double new_tp_dca_duong = 3; // dời sl tp khi đổi trend
-input double new_sl_dca_duong = 3; // dời sl tp khi đổi trend
-input int so_lenh_lenh_tia_1_lan = 1;
+ double new_tp_dca_duong = 3; // dời sl tp khi đổi trend
+ double new_sl_dca_duong = 3; // dời sl tp khi đổi trend
+ int so_lenh_lenh_tia_1_lan = 1;
 
  
 // -------------------------
@@ -106,7 +107,8 @@ void OnTick()
 
     double arrBuy [];
     double arrSell [];
-      bool haveSL = false;
+    bool isHaveSLBUY = false;
+    bool isHaveSLSELL = false;
     for(int i = 0 ; i <  PositionsTotal() ; i ++ ){
          ulong ticket = PositionGetTicket(i);
          int typePosition = PositionGetInteger(POSITION_TYPE);
@@ -116,7 +118,7 @@ void OnTick()
          string comment  = PositionGetString(POSITION_COMMENT);
          datetime positionTime = (datetime)PositionGetInteger(POSITION_TIME);
          double profit = PositionGetDouble(POSITION_PROFIT);
-          double sl = PositionGetDouble(POSITION_SL);
+         double sl = PositionGetDouble(POSITION_SL);
          if(magicNumberDuong == positionMagic)
          {
             if(typePosition == POSITION_TYPE_BUY){
@@ -124,15 +126,20 @@ void OnTick()
                totalPositonBUY ++ ; 
                AddToArray(arrBuy , pricePosition);
                profitBuyDuong = profitBuyDuong + profit;
+                if(sl != 0)
+                 {
+                  isHaveSLBUY = true;
+                 }
             }else {
                totalPositonSELL++ ; 
                AddToArray(arrSell , pricePosition);
                profitSellDuong = profitSellDuong + profit;
+                if(sl != 0)
+                 {
+                  isHaveSLSELL = true;
+                 }
             }
-            if(sl != 0)
-              {
-               haveSL = true;
-              }
+           
          }
   }
   
@@ -148,30 +155,21 @@ void OnTick()
   
   bool ismaxBuy = false;
   bool ismaxSell = false;
+  Print("ishavebuy" , isHaveSLBUY);
+  Print("ishavesell" ,  isHaveSLSELL);
   
-  if(isMergeArr)
-  {
-    MergeArrays(arrBuy , arrSell , arrMerge);
-    isAcceptBuy =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrMerge , dcaPriceBuyDuong);
-    isAcceptSell =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrMerge , dcaPriceSellDuong);
-    ismaxBuy =  rankMaxOpenPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrMerge , lamtronchuoi);
-    ismaxSell =  rankMaxOpenPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrMerge, lamtronchuoi);
-  }else{
-    isAcceptBuy =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrBuy , dcaPriceBuyDuong);
-    isAcceptSell =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrSell , dcaPriceSellDuong);
-    ismaxBuy =  rankMaxOpenPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrBuy , lamtronchuoi);
-    ismaxSell =  rankMaxOpenPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrSell , lamtronchuoi);
-  }
-   if(profitBuyDuong  + profitSellDuong < -500 && haveSL){
-      tradingStopSL();
-      return;
-   }
+  isAcceptBuy =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrBuy , dcaPriceBuyDuong);
+  isAcceptSell =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrSell , dcaPriceSellDuong);
   
-   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong  && ismaxBuy && (trend == 1 || !useTrend))
+  ismaxBuy =  rankMaxOpenPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrBuy , arrSell, lamtronchuoi);
+  ismaxSell =  rankMaxOpenPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrSell , arrBuy , lamtronchuoi);
+
+  
+   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong  && isAcceptBuy && ismaxBuy && (trend == 1 || !useTrend))
    {
        flagBotActive = openBuy(lotBuyDuong , 0 , 0 , magicNumberDuong , "BUY + | "  + IntegerToString(totalPositonBUY) + " | " + DoubleToString(hightPriceBuyDuong + dcaPriceBuyDuong) , hightPriceBuyDuong + dcaPriceBuyDuong);   
    }
-   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong  && ismaxSell && (trend == -1 || !useTrend))
+   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong  && isAcceptSell && ismaxSell && (trend == -1 || !useTrend))
    {
        flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + DoubleToString(lowPriceSellDuong - dcaPriceSellDuong) , lowPriceSellDuong - dcaPriceSellDuong);
    }
@@ -180,8 +178,10 @@ void OnTick()
      tradingStopSL();
    }
    if(is_tia_lenh){
-     tia_lenh_dca(so_lenh_lenh_tia_1_lan);
+    tradingStopSLLost();
    }
+   
+  
    
    if(profitBuyDuong  + profitSellDuong > checkProfitClose)
    {
@@ -248,6 +248,8 @@ void tia_lenh_dca( int limit_tia_lenh){
       }
     }
 }
+
+
 // --------------------------------------------------common function---------------------------------------------------------------------------------------------------------------
 
 bool openBuy(double volumn, double stoploss, double takeProfit, int magic , string comment , double pricerealcheck)
@@ -492,41 +494,6 @@ double getPriceSellDcaDuong(double &arr[])
  
   return arr[0];
 }
-
-
-
-double checkProfit(int typePosition)
-{
-   double totalProfitBuy = 0;
-   double totalProfitSell = 0;
-   double totalProfit = 0;
-   for(int i = 0 ; i <  PositionsTotal() ; i ++ ){
-         ulong ticket = PositionGetTicket(i);
-         int typePosition = PositionGetInteger(POSITION_TYPE);
-         int positionMagic = PositionGetInteger(POSITION_MAGIC);
-         double pricePosition = PositionGetDouble(POSITION_PRICE_OPEN);
-         double volumn = PositionGetDouble(POSITION_VOLUME);
-         string comment  = PositionGetString(POSITION_COMMENT);
-         datetime positionTime = (datetime)PositionGetInteger(POSITION_TIME);
-         double profit = PositionGetDouble(POSITION_PROFIT);
-        
-         if(typePosition == POSITION_TYPE_BUY){
-            totalProfitBuy = totalProfitBuy + profit;
-         }else {
-            totalProfitSell = totalProfitSell + profit;
-         }
-         totalProfit = totalProfit + profit;
-     }
-     if(typePosition == POSITION_TYPE_BUY)
-     {
-      return totalProfitBuy;
-     }else if(typePosition == POSITION_TYPE_SELL)
-     {
-      return totalProfitSell;
-     }else{
-      return totalProfit;
-     }
-}
 long lastUpdateId = 0;
 bool checkOrderLimit(ENUM_TIMEFRAMES timefram , int limit){
    long timeLimit = 0;
@@ -628,10 +595,11 @@ bool isAcceptPrice(double price, double &arr[] , double step)
     return true;
 }
 
-bool rankMaxOpenPrice(double price,double &arr[] , double step)
+bool rankMaxOpenPrice(double price,double &arr[] , double &arr2[] , double step)
 {
    price = floorTo(price , step); 
    int count = 0;
+   
    
 
    for(int i = 0; i < ArraySize(arr); i++)
@@ -639,6 +607,14 @@ bool rankMaxOpenPrice(double price,double &arr[] , double step)
       if(arr[i] > price  && arr[i] < price + step)
       {
          count++;
+      }    
+   }
+   
+   for(int i = 0; i < ArraySize(arr2); i++)
+   {
+      if(arr2[i] > price  && arr2[i] < price + step)
+      {
+         return false;
       }    
    }
 
@@ -745,51 +721,160 @@ int getTrendDirection(ENUM_TIMEFRAMES period)
 
 void tradingStopSL()
 {
-   ulong arrWin[];
-   double profit = 0;
+   double distanceSL = floorTo(5/(lotBuyDuong / 0.01) , 1);
+   
+   double distanceInOnePriceBuy = (lotBuyDuong / 0.01);
+   double distanceInOnePriceSell = (lotSellDuong / 0.01);
    for(int i = 0 ; i < PositionsTotal() ; i++)
     {
         ulong ticket = PositionGetTicket(i);
         double profitPostion = PositionGetDouble(POSITION_PROFIT);
         double sl = PositionGetDouble(POSITION_SL);
+        double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+        double currentPrice = 0;
         if(ticket > 0 && PositionSelectByTicket(ticket))
         {
+            if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+                   currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+            else
+                   currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+                   
             if(PositionGetInteger(POSITION_MAGIC) == magicNumberDuong){        
-               profit = profit + profitPostion;
-               if(profitPostion > profit_aplied_sl)
+               if(profitPostion < profit_aplied_sl){
+                  continue;
+               }
+               // th dời lần đầu 
+               if(sl == 0)
                {
-                 AddToArray(arrWin, ticket);
+                  double newSl = 0;
+                  if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+                  {
+                     newSl = openPrice + (MathAbs(openPrice - currentPrice)/2);
+                  }else{
+                     newSl =  openPrice - (MathAbs(openPrice - currentPrice)/2);
+                  }
+                  ModifyPositionByTicket(ticket , newSl , 0);
+                  continue;
+               }
+               if(!is_sl_next){
+                  continue;
+               }
+               double distanceInFrist = 0;
+               double temp = 0;
+               if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY){
+                  temp = currentPrice - sl;
+                  
+                  if(temp < 0)
+                  {
+                     continue;
+                  }
+                  if(temp / distanceSL  > 2)
+                  {
+                     double newSL = sl + distanceSL;
+                     ModifyPositionByTicket(ticket , newSL , 0);
+                  }
+               }
+               else{
+                  temp = sl - currentPrice;
+                  if(temp < 0)
+                  {
+                     continue;
+                  }
+                  if(temp / distanceSL > 2)
+                  {
+                     double newSL = sl - distanceSL;
+                     ModifyPositionByTicket(ticket , newSL , 0);
+                  }
                }
             }
         }
     }
-    for(int i = 0; i < ArraySize(arrWin); i++)
-    {
-      ulong ticket = arrWin[i];
-      double currentPrice;
-      if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
-          currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
-      else
-          currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-      if(PositionSelectByTicket(ticket)){
-         double profit = PositionGetDouble(POSITION_PROFIT);
-         double volumn =  PositionGetDouble(POSITION_VOLUME);
-         double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
-         double sl = PositionGetDouble(POSITION_SL);
-         double newSl = 0;
-         if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+    
+}
+
+
+void tradingStopSLLost()
+{
+   double distanceSL = floorTo(5 / (lotBuyDuong / 0.01), 1);
+   int total = PositionsTotal();
+
+   for (int i = 0; i < total; i++)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if (ticket <= 0 || !PositionSelectByTicket(ticket))
+         continue;
+
+      int magic = (int)PositionGetInteger(POSITION_MAGIC);
+      if (magic != magicNumberDuong)
+         continue;
+
+      int type = (int)PositionGetInteger(POSITION_TYPE);
+      double profitPosition = PositionGetDouble(POSITION_PROFIT);
+      double sl = PositionGetDouble(POSITION_SL);
+      double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+      double currentPrice = (type == POSITION_TYPE_BUY)
+         ? SymbolInfoDouble(_Symbol, SYMBOL_ASK)
+         : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+
+      // chỉ xử lý khi lỗ nhiều hơn ngưỡng cho phép
+      if (profitPosition > -MathAbs(profit_am_tia_len))
+         continue;
+
+      // nếu chưa có SL, dời 1 nửa khoảng lỗ hiện tại
+      if (sl == 0)
+      {
+         double newSL = 0;
+         if (type == POSITION_TYPE_BUY)
          {
-            newSl = openPrice + (MathAbs(openPrice - currentPrice)/2);
-         }else{
-            newSl =  openPrice - (MathAbs(openPrice - currentPrice)/2);
+            // lệnh BUY đang lỗ => SL đặt thấp hơn giá hiện tại
+            newSL = currentPrice - (MathAbs(openPrice - currentPrice) / 2);
          }
-         if(sl == 0 &&  newSl != 0)
+         else
          {
-           ModifyPositionByTicket(ticket , newSl , 0);
+            // lệnh SELL đang lỗ => SL đặt cao hơn giá hiện tại
+            newSL = currentPrice + (MathAbs(openPrice - currentPrice) / 2);
+         }
+
+         ModifyPositionByTicket(ticket, newSL, 0);
+         PrintFormat("🛑 Dời SL lần đầu (thua): %s | Ticket %d | SL=%.5f", 
+                     (type == POSITION_TYPE_BUY ? "BUY" : "SELL"), ticket, newSL);
+         continue;
+      }
+
+      // trailing SL ngược hướng nếu giá đi xấu thêm
+      double temp = 0;
+      if (type == POSITION_TYPE_BUY)
+      {
+         temp = sl - currentPrice; // khoảng cách SL cách giá hiện tại
+
+         if (temp < 0)
+            continue; // SL đã vượt giá, không dời nữa
+
+         if (temp / distanceSL > 2)
+         {
+            double newSL = sl - distanceSL; // kéo SL xuống thêm
+            ModifyPositionByTicket(ticket, newSL, 0);
+            PrintFormat("📉 Giảm SL BUY (thua): Ticket %d | newSL=%.5f", ticket, newSL);
          }
       }
-    }
+      else if (type == POSITION_TYPE_SELL)
+      {
+         temp = currentPrice - sl;
+
+         if (temp < 0)
+            continue;
+
+         if (temp / distanceSL > 2)
+         {
+            double newSL = sl + distanceSL; // kéo SL lên thêm
+            ModifyPositionByTicket(ticket, newSL, 0);
+            PrintFormat("📈 Giảm SL SELL (thua): Ticket %d | newSL=%.5f", ticket, newSL);
+         }
+      }
+   }
 }
+
+
 
 // 📌 Hàm gộp 2 mảng double thành 1 mảng
 void MergeArrays(const double &arr1[], const double &arr2[], double &result[])
@@ -846,6 +931,7 @@ bool isCommentPriceExist(double price, int magicNumber, string type)
    }
    return false;
 }
+
 
 
 
