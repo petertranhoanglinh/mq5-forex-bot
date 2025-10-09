@@ -165,11 +165,11 @@ void OnTick()
   ismaxSell =  rankMaxOpenPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrSell , arrBuy , lamtronchuoi);
 
   
-   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong  && isAcceptBuy && ismaxBuy && (trend == 1 || !useTrend))
+   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong  && isAcceptBuy && ismaxBuy && (trend == 1 || !useTrend) && !isHaveSLBUY)
    {
        flagBotActive = openBuy(lotBuyDuong , 0 , 0 , magicNumberDuong , "BUY + | "  + IntegerToString(totalPositonBUY) + " | " + DoubleToString(hightPriceBuyDuong + dcaPriceBuyDuong) , hightPriceBuyDuong + dcaPriceBuyDuong);   
    }
-   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong  && isAcceptSell && ismaxSell && (trend == -1 || !useTrend))
+   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong  && isAcceptSell && ismaxSell && (trend == -1 || !useTrend) && !isHaveSLSELL)
    {
        flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + DoubleToString(lowPriceSellDuong - dcaPriceSellDuong) , lowPriceSellDuong - dcaPriceSellDuong);
    }
