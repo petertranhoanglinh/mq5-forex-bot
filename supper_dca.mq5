@@ -25,8 +25,8 @@ input double he_so_vao_lai_lenh_khi_gia_nguoc_sell = 30;
 
 input group "__Set Các chức năng liên quan tới DCA DƯƠNG nâng cao";
 input bool isMergeArr = true; // bạn có muốn khoảng giá dca buy và sell ko trùng nhau  
-input double lamtronchuoi = 20;
-input int max_lenh_trong_chuoi = 10;
+input double lamtronchuoi = 50;
+input int max_lenh_trong_chuoi = 20;
 
 
 
@@ -106,6 +106,7 @@ void OnTick()
 
     double arrBuy [];
     double arrSell [];
+      bool haveSL = false;
     for(int i = 0 ; i <  PositionsTotal() ; i ++ ){
          ulong ticket = PositionGetTicket(i);
          int typePosition = PositionGetInteger(POSITION_TYPE);
@@ -115,6 +116,7 @@ void OnTick()
          string comment  = PositionGetString(POSITION_COMMENT);
          datetime positionTime = (datetime)PositionGetInteger(POSITION_TIME);
          double profit = PositionGetDouble(POSITION_PROFIT);
+          double sl = PositionGetDouble(POSITION_SL);
          if(magicNumberDuong == positionMagic)
          {
             if(typePosition == POSITION_TYPE_BUY){
@@ -127,11 +129,17 @@ void OnTick()
                AddToArray(arrSell , pricePosition);
                profitSellDuong = profitSellDuong + profit;
             }
+            if(sl != 0)
+              {
+               haveSL = true;
+              }
          }
   }
   
   double hightPriceBuyDuong =  getPriceBuyDcaDuong(arrBuy);
+  hightPriceBuyDuong =  floorTo(hightPriceBuyDuong , dcaPriceBuyDuong);
   double lowPriceSellDuong = getPriceSellDcaDuong(arrSell);
+  lowPriceSellDuong = floorTo(lowPriceSellDuong , dcaPriceSellDuong);
   int trend = getTrendDirection(PERIOD_M1);
   
   double arrMerge[];
@@ -151,17 +159,21 @@ void OnTick()
   }else{
     isAcceptBuy =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrBuy , dcaPriceBuyDuong);
     isAcceptSell =  isAcceptPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrSell , dcaPriceSellDuong);
-    
     ismaxBuy =  rankMaxOpenPrice(SymbolInfoDouble(_Symbol, SYMBOL_ASK) ,  arrBuy , lamtronchuoi);
     ismaxSell =  rankMaxOpenPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrSell , lamtronchuoi);
   }
-   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong && isAcceptBuy && ismaxBuy && (trend == 1 || !useTrend))
-   {
-       flagBotActive = openBuy(lotBuyDuong , 0 , 0 , magicNumberDuong , "BUY + | "  + IntegerToString(totalPositonBUY) + " | " + GetTimeVN());   
+   if(profitBuyDuong  + profitSellDuong < -500 && haveSL){
+      tradingStopSL();
+      return;
    }
-   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong && isAcceptSell && ismaxSell && (trend == -1 || !useTrend))
+  
+   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong  && ismaxBuy && (trend == 1 || !useTrend))
    {
-       flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + GetTimeVN());
+       flagBotActive = openBuy(lotBuyDuong , 0 , 0 , magicNumberDuong , "BUY + | "  + IntegerToString(totalPositonBUY) + " | " + DoubleToString(hightPriceBuyDuong + dcaPriceBuyDuong) , hightPriceBuyDuong + dcaPriceBuyDuong);   
+   }
+   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong  && ismaxSell && (trend == -1 || !useTrend))
+   {
+       flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + DoubleToString(lowPriceSellDuong - dcaPriceSellDuong) , lowPriceSellDuong - dcaPriceSellDuong);
    }
    
    if(is_tradding_stop){
@@ -238,12 +250,16 @@ void tia_lenh_dca( int limit_tia_lenh){
 }
 // --------------------------------------------------common function---------------------------------------------------------------------------------------------------------------
 
-bool openBuy(double volumn, double stoploss, double takeProfit, int magic , string comment)
+bool openBuy(double volumn, double stoploss, double takeProfit, int magic , string comment , double pricerealcheck)
 {
    
    if(!checkOrderLimit(timeFrames , inputLimit))
    {
       Print("Limit Order Accept");
+      return true;
+   }
+   if(isCommentPriceExist(pricerealcheck , magicNumberDuong , "BUY")){
+      Print("Price is buyed");
       return true;
    }
    double price = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
@@ -260,11 +276,16 @@ bool openBuy(double volumn, double stoploss, double takeProfit, int magic , stri
    }
 }
 
-bool openSell(double volumn, double stoploss, double takeProfit, int magic ,  string comment)
+bool openSell(double volumn, double stoploss, double takeProfit, int magic ,  string comment , double pricerealcheck)
 {
    if(!checkOrderLimit(timeFrames , inputLimit))
    {
       Print("Limit Order Accept");
+      return true;
+   }
+   
+    if(isCommentPriceExist(pricerealcheck , magicNumberDuong , "SELL")){
+      Print("Price is buyed");
       return true;
    }
    double price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
@@ -428,7 +449,7 @@ double getPriceBuyDcaDuong(double &arr[])
   if(arr[size-1] - currentPrice > he_so_vao_lai_lenh_khi_gia_nguoc_buy && !flagBuy)
   {
    flagBuy = true;
-   return currentPrice - dcaPriceBuyDuong - 0.01;
+   return currentPrice - dcaPriceBuyDuong;
   }
   
   
@@ -457,7 +478,7 @@ double getPriceSellDcaDuong(double &arr[])
   if(currentPrice - arr[0] > he_so_vao_lai_lenh_khi_gia_nguoc_sell && !flagSell)
   {
    flagSell = true;
-   return currentPrice + dcaPriceSellDuong + 0.01;
+   return currentPrice + dcaPriceSellDuong;
   }
   if(flagSell)
   {
@@ -787,5 +808,46 @@ void MergeArrays(const double &arr1[], const double &arr2[], double &result[])
    for(int j = 0; j < size2; j++)
       result[size1 + j] = arr2[j];
 }
+
+// type: "BUY", "SELL" hoặc "ALL"
+bool isCommentPriceExist(double price, int magicNumber, string type)
+{
+   string target = DoubleToString(price, 5);
+   int total = PositionsTotal();
+
+   for(int i = 0; i < total; i++)
+   {
+      // Lấy ticket của lệnh tại vị trí i
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0) continue; // nếu lỗi
+
+      if(PositionSelectByTicket(ticket))
+      {
+         string symbol = PositionGetString(POSITION_SYMBOL);
+         if(symbol != _Symbol) continue;
+
+         int mg = (int)PositionGetInteger(POSITION_MAGIC);
+         if(mg != magicNumber) continue;
+
+         ENUM_POSITION_TYPE posType = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE);
+         string comment = PositionGetString(POSITION_COMMENT);
+
+         bool matchType =
+            (type == "ALL") ||
+            (type == "BUY"  && posType == POSITION_TYPE_BUY) ||
+            (type == "SELL" && posType == POSITION_TYPE_SELL);
+
+         if(matchType && StringFind(comment, target) != -1)
+         {
+            Print("⚠️ Trùng giá DCA ", type, " trong comment: ", comment);
+            return true;
+         }
+      }
+   }
+   return false;
+}
+
+
+
 
 // --------------------------------------------------end common function---------------------------------------------------------------------------------------------------------------
