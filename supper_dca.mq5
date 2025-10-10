@@ -145,6 +145,7 @@ void OnTick()
   
   double hightPriceBuyDuong =  getPriceBuyDcaDuong(arrBuy);
   hightPriceBuyDuong =  floorTo(hightPriceBuyDuong , dcaPriceBuyDuong);
+  
   double lowPriceSellDuong = getPriceSellDcaDuong(arrSell);
   lowPriceSellDuong = floorTo(lowPriceSellDuong , dcaPriceSellDuong);
   int trend = getTrendDirection(PERIOD_M1);
@@ -165,17 +166,17 @@ void OnTick()
   ismaxSell =  rankMaxOpenPrice(SymbolInfoDouble(_Symbol, SYMBOL_BID) ,  arrSell , arrBuy , lamtronchuoi);
 
   
-   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong  && isAcceptBuy && ismaxBuy && (trend == 1 || !useTrend) && !isHaveSLBUY)
+   if(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - hightPriceBuyDuong > dcaPriceBuyDuong && isDcaBuyDuong  && isAcceptBuy && ismaxBuy && (trend == 1 || !useTrend) && !isHaveSLBUY && !isHaveSLSELL)
    {
        flagBotActive = openBuy(lotBuyDuong , 0 , 0 , magicNumberDuong , "BUY + | "  + IntegerToString(totalPositonBUY) + " | " + DoubleToString(hightPriceBuyDuong + dcaPriceBuyDuong) , hightPriceBuyDuong + dcaPriceBuyDuong);   
    }
-   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong  && isAcceptSell && ismaxSell && (trend == -1 || !useTrend) && !isHaveSLSELL)
+   if(lowPriceSellDuong - SymbolInfoDouble(_Symbol, SYMBOL_BID) >  dcaPriceSellDuong && isDcaSellDuong  && isAcceptSell && ismaxSell && (trend == -1 || !useTrend) && !isHaveSLSELL && !isHaveSLBUY)
    {
        flagBotActive = openSell(lotSellDuong, 0 , 0 , magicNumberDuong , "SELL + | "  + IntegerToString(totalPositonSELL) + " | " + DoubleToString(lowPriceSellDuong - dcaPriceSellDuong) , lowPriceSellDuong - dcaPriceSellDuong);
    }
    
    if(is_tradding_stop){
-     tradingStopSL();
+     tradingStopSL(profit_aplied_sl);
    }
    if(is_tia_lenh){
     tradingStopSLLost();
@@ -719,7 +720,7 @@ int getTrendDirection(ENUM_TIMEFRAMES period)
    return 0;
 }
 
-void tradingStopSL()
+void tradingStopSL(double profit_aplied)
 {
    double distanceSL = floorTo(5/(lotBuyDuong / 0.01) , 1);
    
